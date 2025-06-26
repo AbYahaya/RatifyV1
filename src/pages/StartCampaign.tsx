@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,15 +6,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { useWallet } from '@/hooks/useWallet';
+import { useWallet } from "@meshsdk/react";
 import { toast } from '@/hooks/use-toast';
 import { Wallet, Camera, Calendar, Target } from 'lucide-react';
 
 const StartCampaign = () => {
   const navigate = useNavigate();
-  const { wallet, connectWallet } = useWallet();
+  const { connected, wallet, connect } = useWallet();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -31,8 +30,8 @@ const StartCampaign = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!wallet.isConnected) {
+
+    if (!connected) {
       toast({
         title: "Wallet Required",
         description: "Please connect your wallet to create a campaign.",
@@ -42,16 +41,19 @@ const StartCampaign = () => {
     }
 
     setIsSubmitting(true);
-    
+
     try {
-      // Mock campaign creation - in real app, this would interact with blockchain
+      // TODO: Replace this with your Mesh-powered campaign creation logic
+      // Example: Interact with your Aiken smart contract here using Mesh
+
+      // Mock campaign creation for now
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       toast({
         title: "Campaign Created!",
         description: "Your campaign has been successfully created and published.",
       });
-      
+
       navigate('/');
     } catch (error) {
       toast({
@@ -64,8 +66,8 @@ const StartCampaign = () => {
     }
   };
 
-  const isFormValid = formData.title && formData.description && formData.targetAmount && 
-                     formData.endDate && formData.category;
+  const isFormValid = formData.title && formData.description && formData.targetAmount &&
+    formData.endDate && formData.category;
 
   return (
     <div className="min-h-screen py-12">
@@ -79,7 +81,7 @@ const StartCampaign = () => {
           </p>
         </div>
 
-        {!wallet.isConnected && (
+        {!connected && (
           <Card className="mb-8 border-amber-200 bg-amber-50">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -95,7 +97,7 @@ const StartCampaign = () => {
                   </p>
                 </div>
                 <Button
-                  onClick={connectWallet}
+                  onClick={() => connect("eternl")}
                   className="bg-amber-600 hover:bg-amber-700"
                 >
                   Connect Wallet
@@ -225,7 +227,7 @@ const StartCampaign = () => {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!wallet.isConnected || !isFormValid || isSubmitting}
+                  disabled={!connected || !isFormValid || isSubmitting}
                   className="flex-1 h-12 bg-cardano-600 hover:bg-cardano-700"
                 >
                   {isSubmitting ? 'Creating Campaign...' : 'Create Campaign'}
