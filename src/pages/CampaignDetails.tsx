@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
-import { useWallet } from '@/hooks/useWallet';
+import { useWallet } from '@meshsdk/react';
 import { toast } from '@/hooks/use-toast';
 import { mockCampaigns } from '@/data/mockData';
 import { 
@@ -25,11 +24,25 @@ import {
 const CampaignDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { wallet, connectWallet } = useWallet();
+  const { connected, wallet, connect } = useWallet();
   const [donationAmount, setDonationAmount] = useState('');
   const [isDonating, setIsDonating] = useState(false);
+  const [balance, setBalance] = useState<number>(0);
 
   const campaign = mockCampaigns.find(c => c.id === id);
+
+  // Fetch wallet balance when connected
+  useEffect(() => {
+    async function fetchBalance() {
+      if (connected && wallet) {
+        const bal = await wallet.getBalance();
+        setBalance(Number(bal) / 1_000_000);
+      } else {
+        setBalance(0);
+      }
+    }
+    fetchBalance();
+  }, [connected, wallet]);
 
   if (!campaign) {
     return (
@@ -51,7 +64,7 @@ const CampaignDetails = () => {
   );
 
   const handleDonation = async () => {
-    if (!wallet.isConnected) {
+    if (!connected) {
       toast({
         title: "Wallet Required",
         description: "Please connect your wallet to make a donation.",
@@ -69,7 +82,7 @@ const CampaignDetails = () => {
       return;
     }
 
-    if (parseFloat(donationAmount) > wallet.balance) {
+    if (parseFloat(donationAmount) > balance) {
       toast({
         title: "Insufficient Balance",
         description: "You don't have enough ADA in your wallet.",
@@ -81,7 +94,7 @@ const CampaignDetails = () => {
     setIsDonating(true);
 
     try {
-      // Mock donation transaction - in real app, this would interact with blockchain
+      // TODO: Replace this with Mesh-powered donation transaction
       await new Promise(resolve => setTimeout(resolve, 3000));
       
       toast({
@@ -234,7 +247,7 @@ const CampaignDetails = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!wallet.isConnected ? (
+                {!connected ? (
                   <div className="text-center space-y-4">
                     <div className="bg-cardano-50 p-4 rounded-lg">
                       <Wallet className="w-8 h-8 text-cardano-600 mx-auto mb-2" />
@@ -243,7 +256,7 @@ const CampaignDetails = () => {
                       </p>
                     </div>
                     <Button
-                      onClick={connectWallet}
+                      onClick={() => connect('eternl')}
                       className="w-full bg-cardano-600 hover:bg-cardano-700 h-12"
                     >
                       <Wallet className="w-4 h-4 mr-2" />
@@ -267,7 +280,7 @@ const CampaignDetails = () => {
                         step="0.01"
                       />
                       <div className="text-sm text-slate-500">
-                        Available balance: {wallet.balance.toFixed(2)} ADA
+                        Available balance: {balance.toFixed(2)} ADA
                       </div>
                     </div>
 

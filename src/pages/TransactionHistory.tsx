@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useWallet } from '@/hooks/useWallet';
+import { useWallet } from '@meshsdk/react';
 import { mockTransactions } from '@/data/mockData';
 import { 
   Wallet, 
@@ -11,20 +10,39 @@ import {
   Calendar, 
   ArrowUpRight,
   TrendingUp,
-  Target
+  Target,
+  EthernetPort
 } from 'lucide-react';
 
 const TransactionHistory = () => {
-  const { wallet, connectWallet } = useWallet();
+  const { connected, wallet, connect } = useWallet();
+
+  const [address, setAddress] = React.useState<string | null>(null);
+  const [balance, setBalance] = React.useState<number>(0);
+
+  React.useEffect(() => {
+    const fetchWalletInfo = async () => {
+      if (connected && wallet) {
+        const addr = await wallet.getChangeAddress();
+        setAddress(addr);
+        const bal = await wallet.getBalance();
+        setBalance(Number(bal) / 1_000_000);
+      } else {
+        setAddress(null);
+        setBalance(0);
+      }
+    };
+    fetchWalletInfo();
+  }, [connected, wallet]);
 
   // Filter transactions for the connected wallet
-  const userTransactions = mockTransactions.filter(
-    tx => tx.donor === wallet.address
-  );
+  const userTransactions = address
+    ? mockTransactions.filter(tx => tx.donor === address)
+    : [];
 
   const totalDonated = userTransactions.reduce((sum, tx) => sum + tx.amount, 0);
 
-  if (!wallet.isConnected) {
+  if (!connected) {
     return (
       <div className="min-h-screen py-12">
         <div className="container mx-auto px-4 max-w-4xl">
@@ -49,7 +67,7 @@ const TransactionHistory = () => {
                 Connect your Cardano wallet to view your transaction history and track all your donations.
               </p>
               <Button
-                onClick={connectWallet}
+                onClick={() => connect('eternl')}
                 className="bg-cardano-600 hover:bg-cardano-700 text-lg px-8 py-6 h-auto"
               >
                 <Wallet className="w-5 h-5 mr-2" />
@@ -106,7 +124,7 @@ const TransactionHistory = () => {
                 <Wallet className="w-6 h-6 text-blue-600" />
               </div>
               <div className="text-2xl font-bold text-slate-800 mb-1">
-                {wallet.balance.toFixed(2)} ADA
+                {balance.toFixed(2)} ADA
               </div>
               <div className="text-slate-600">Current Balance</div>
             </CardContent>
@@ -164,6 +182,7 @@ const TransactionHistory = () => {
                         variant="outline"
                         size="sm"
                         className="text-cardano-600 border-cardano-200 hover:bg-cardano-50"
+                        onClick={() => window.open(`https://cardanoscan.io/transaction/${transaction.txHash}`, "_blank")}
                       >
                         <ExternalLink className="w-3 h-3 mr-1" />
                         View on Explorer
