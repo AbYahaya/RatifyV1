@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -5,9 +6,9 @@ import { Wallet, Loader2 } from "lucide-react";
 import { useWallet } from "@meshsdk/react";
 
 const WalletConnection = () => {
-  const { connected, wallet, connect, disconnect } = useWallet();
+  const { connected, wallet, connect, disconnect, connecting } = useWallet();
 
-  const [balance, setBalance] = React.useState<number | null>(null);
+  const [balance, setBalance] = React.useState<string | null>(null);
   const [address, setAddress] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
@@ -20,9 +21,12 @@ const WalletConnection = () => {
           const addr = usedAddresses && usedAddresses.length > 0 ? usedAddresses[0] : "";
           setAddress(addr);
 
-          const bal = await wallet.getBalance();
-          // bal is BigInt in lovelace
-          setBalance(Number(bal) / 1_000_000);
+          const utxos = await wallet.getUtxos();
+          const totalBalance = utxos.reduce((sum, utxo) => {
+            return sum + parseInt(utxo.output.amount[0].quantity);
+          }, 0);
+          
+          setBalance((totalBalance / 1_000_000).toFixed(2));
         } catch (error) {
           console.error("Failed to fetch wallet info:", error);
           setAddress(null);
@@ -49,7 +53,14 @@ const WalletConnection = () => {
           {address ? `${address.slice(0, 8)}...${address.slice(-6)}` : ""}
         </div>
         <div className="text-sm font-medium">
-          {loading ? "Loading..." : balance?.toFixed(2)} ADA
+          {loading ? (
+            <div className="flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading...
+            </div>
+          ) : (
+            `${balance || '0.00'} ADA`
+          )}
         </div>
         <Button
           variant="outline"
@@ -66,10 +77,20 @@ const WalletConnection = () => {
   return (
     <Button
       onClick={() => connect("eternl")}
+      disabled={connecting}
       className="bg-cardano-600 hover:bg-cardano-700 text-white"
     >
-      <Wallet className="w-4 h-4 mr-2" />
-      Connect Wallet
+      {connecting ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Connecting...
+        </>
+      ) : (
+        <>
+          <Wallet className="w-4 h-4 mr-2" />
+          Connect Wallet
+        </>
+      )}
     </Button>
   );
 };
