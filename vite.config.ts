@@ -1,9 +1,11 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import wasm from "vite-plugin-wasm";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -12,7 +14,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    wasm(),
+    wasm(), // Add wasm plugin here
     mode === 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
@@ -22,12 +24,13 @@ export default defineConfig(({ mode }) => ({
       stream: "stream-browserify",
       process: "process/browser",
     },
+    fallback: {
+      buffer: require.resolve("buffer"),
+      stream: require.resolve("stream-browserify"),
+      process: require.resolve("process/browser"),
+    },
   },
   define: {
     global: 'globalThis',
-    'process.env': {},
-  },
-  optimizeDeps: {
-    include: ['buffer', 'process'],
   },
 }));
