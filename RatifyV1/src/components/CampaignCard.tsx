@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -31,7 +30,7 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign }) => {
   };
 
   return (
-    <Link to={`/campaign/${campaign.id}`} className="block">
+    <Link href={`/campaign/${campaign.id}`} className="block">
       <Card className="campaign-card h-full group">
         <CardHeader className="p-0">
           {campaign.imageUrl && (

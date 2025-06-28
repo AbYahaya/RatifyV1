@@ -1,27 +1,27 @@
-
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import WalletConnection from './WalletConnection';
 import { Home, Plus, History } from 'lucide-react';
 
 const Navigation = () => {
-  const location = useLocation();
+  const router = useRouter();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => router.pathname === path;
 
   return (
     <nav className="bg-white/80 backdrop-blur-lg border-b border-slate-200/50 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link to="/" className="text-2xl font-bold bg-gradient-to-r from-cardano-600 to-purple-600 bg-clip-text text-transparent">
+            <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-cardano-600 to-purple-600 bg-clip-text text-transparent">
               RatifyV1
             </Link>
             
             <div className="hidden md:flex items-center gap-6">
               <Link
-                to="/"
+                href="/"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
                   isActive('/') 
                     ? 'bg-cardano-100 text-cardano-700' 
@@ -33,7 +33,7 @@ const Navigation = () => {
               </Link>
               
               <Link
-                to="/start-campaign"
+                href="/start-campaign"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
                   isActive('/start-campaign') 
                     ? 'bg-cardano-100 text-cardano-700' 
@@ -45,7 +45,7 @@ const Navigation = () => {
               </Link>
               
               <Link
-                to="/transactions"
+                href="/transactions"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
                   isActive('/transactions') 
                     ? 'bg-cardano-100 text-cardano-700' 

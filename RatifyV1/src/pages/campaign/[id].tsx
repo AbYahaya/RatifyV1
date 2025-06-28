@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,8 +22,9 @@ import {
 } from 'lucide-react';
 
 const CampaignDetails = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const { id } = router.query;
+  // Removed useNavigate; use router.push for navigation in Next.js
   const { wallet, connectWallet } = useWallet();
   const [donationAmount, setDonationAmount] = useState('');
   const [isDonating, setIsDonating] = useState(false);
@@ -36,7 +36,7 @@ const CampaignDetails = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-800 mb-4">Campaign Not Found</h1>
-          <Button onClick={() => navigate('/')} className="bg-cardano-600 hover:bg-cardano-700">
+          <Button onClick={() => router.push('/')} className="bg-cardano-600 hover:bg-cardano-700">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
@@ -118,7 +118,7 @@ const CampaignDetails = () => {
     <div className="min-h-screen py-8">
       <div className="container mx-auto px-4 max-w-6xl">
         <Button
-          onClick={() => navigate('/')}
+          onClick={() => router.push('/')}
           variant="outline"
           className="mb-6"
         >

@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Wallet, Camera, Calendar, Target } from 'lucide-react';
 
 const StartCampaign = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { wallet, connectWallet } = useWallet();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -52,7 +51,7 @@ const StartCampaign = () => {
         description: "Your campaign has been successfully created and published.",
       });
       
-      navigate('/');
+      router.push('/');
     } catch (error) {
       toast({
         title: "Error",
@@ -218,7 +217,7 @@ const StartCampaign = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate('/')}
+                  onClick={() => router.push('/')}
                   className="flex-1 h-12"
                 >
                   Cancel
