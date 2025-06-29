@@ -1,8 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { Button } from '@/components/ui/button';
-import WalletConnection from './WalletConnection';
+import { CardanoWallet } from '@meshsdk/react';
 import { Home, Plus, History } from 'lucide-react';
 
 const Navigation = () => {
@@ -18,37 +17,37 @@ const Navigation = () => {
             <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-cardano-600 to-purple-600 bg-clip-text text-transparent">
               RatifyV1
             </Link>
-            
+
             <div className="hidden md:flex items-center gap-6">
               <Link
                 href="/"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                  isActive('/') 
-                    ? 'bg-cardano-100 text-cardano-700' 
+                  isActive('/')
+                    ? 'bg-cardano-100 text-cardano-700'
                     : 'text-slate-600 hover:text-cardano-600 hover:bg-slate-100'
                 }`}
               >
                 <Home className="w-4 h-4" />
                 Home
               </Link>
-              
+
               <Link
                 href="/start-campaign"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                  isActive('/start-campaign') 
-                    ? 'bg-cardano-100 text-cardano-700' 
+                  isActive('/start-campaign')
+                    ? 'bg-cardano-100 text-cardano-700'
                     : 'text-slate-600 hover:text-cardano-600 hover:bg-slate-100'
                 }`}
               >
                 <Plus className="w-4 h-4" />
                 Start Campaign
               </Link>
-              
+
               <Link
                 href="/transactions"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                  isActive('/transactions') 
-                    ? 'bg-cardano-100 text-cardano-700' 
+                  isActive('/transactions')
+                    ? 'bg-cardano-100 text-cardano-700'
                     : 'text-slate-600 hover:text-cardano-600 hover:bg-slate-100'
                 }`}
               >
@@ -57,8 +56,9 @@ const Navigation = () => {
               </Link>
             </div>
           </div>
-          
-          <WalletConnection />
+
+          {/* Mesh CardanoWallet Button */}
+          <CardanoWallet label="Connect Wallet" persist={true} />
         </div>
       </div>
     </nav>
