@@ -1,32 +1,7 @@
 RatifyV1
+
 RatifyV1 is a decentralized crowdfunding platform built on the Cardano blockchain that brings transparency and ease to the donor industry. It empowers donors to track donations and campaign statuses seamlessly without needing to navigate complex blockchain explorers. The platform also provides automated refunds for unsuccessful campaigns, enhancing trust and user experience.
 
-Table of Contents
-Project Overview
-
-Key Features
-
-Architecture
-
-Tech Stack
-
-Getting Started
-
-Running Locally
-
-Deployment
-
-Usage
-
-Folder Structure
-
-Contributing
-
-License
-
-Team
-
-Acknowledgments
 
 Project Overview
 The donor industry faces significant challenges related to transparency, trust, and ease of use. RatifyV1 addresses these by leveraging Cardano’s secure and scalable blockchain infrastructure to:
