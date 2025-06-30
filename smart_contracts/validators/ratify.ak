@@ -264,8 +264,7 @@ fn validate_cancel_campaign(
     creator_address: datum_creator_address,
     ..
   } = creator_datum_data
-  expect VerificationKey(creator_vkh) =
-    creator_utxo_in.output.address.payment_credential
+  expect VerificationKey(creator_vkh) = creator_address.payment_credential
 
   // Checks if the current input the spend contract is handling is a backer utxo in
   // then validate the refund to the backer if it's a backer utxo
@@ -287,7 +286,7 @@ fn validate_cancel_campaign(
         outputs,
       )
     } else {
-      False
+      True
     }
 
   and {
@@ -368,8 +367,8 @@ fn validate_withdraw_funds(
     funding_goal,
     current_funds,
   } = creator_datum_data
-  expect VerificationKey(creator_vkh) =
-    creator_utxo_in.output.address.payment_credential
+
+  expect VerificationKey(creator_vkh) = creator_address.payment_credential
 
   // All utxo inputs must go to the creator's address
   expect Some(_creator_output) =
