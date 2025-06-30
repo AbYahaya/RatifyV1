@@ -7,9 +7,22 @@ import { mConStr0, mConStr1, mPubKeyAddress, stringToHex } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
 
+// Simple toast component or replace with your UI library's toast
+const Toast = ({ message, type }: { message: string; type: "success" | "error" }) => (
+  <div
+    className={`fixed top-4 right-4 px-4 py-2 rounded shadow-md font-semibold ${
+      type === "success" ? "bg-green-500 text-white" : "bg-red-600 text-white"
+    }`}
+  >
+    {message}
+  </div>
+);
+
 export default function StartCampaign() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
   const {
     wallet,
     walletVK,
@@ -34,96 +47,100 @@ export default function StartCampaign() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!address) return;
-    setIsSubmitting(true);
-
-    // TODO: Implement actual campaign creation logic here (off-chain or on-chain)
-    setTimeout(() => {
-      setIsSubmitting(false);
-      router.push("/");
-    }, 1500);
-  };
+  const isFormValid =
+    formData.title.trim() !== "" &&
+    formData.description.trim() !== "" &&
+    formData.targetAmount.trim() !== "" &&
+    !isNaN(Number(formData.targetAmount)) &&
+    Number(formData.targetAmount) > 0 &&
+    formData.category.trim() !== "";
 
   const createCampaign = async () => {
-    try {
-      if (!walletCollateral || !blockchainProvider || !txBuilder) throw new Error("Paramters not set up correctly!");
-
-      const campaignIdHex = stringToHex(formData.title);
-      const {
-        creatorUtxoRef,
-        ratifyValidatorScript,
-        ratifyPolicy,
-        ratifyAddress,
-        creatorNftName,
-        creatorUtxoNFTName,
-      } = await getValidator(
-        walletVK,
-        walletSK,
-        campaignIdHex,
-        blockchainProvider,
-      );
-
-      const creatorDatum = mConStr0([
-          campaignIdHex, // campaign ID
-          mPubKeyAddress(walletVK, walletSK), // creator address
-          0, // current_funds
-          mConStr1([Number(formData.targetAmount)]) // funding_goal (here it's fundEnd: 100 ADA)
-      ]);
-
-      const unsignedTx = await txBuilder
-        .txIn(
-          creatorUtxoRef.input.txHash,
-          creatorUtxoRef.input.outputIndex,
-          creatorUtxoRef.output.amount,
-          creatorUtxoRef.output.address,
-        )
-        .mintPlutusScriptV3()
-        .mint("1", ratifyPolicy, creatorNftName)
-        .mintingScript(ratifyValidatorScript)
-        .mintRedeemerValue(mConStr0([]))
-        .mintPlutusScriptV3()
-        .mint("1", ratifyPolicy, creatorUtxoNFTName)
-        .mintingScript(ratifyValidatorScript)
-        .mintRedeemerValue(mConStr0([]))
-        .txOut(ratifyAddress, [ { unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" } ])
-        .txOutInlineDatumValue(creatorDatum)
-        .changeAddress(address)
-        .selectUtxosFrom(walletUtxos)
-        .txInCollateral(
-          walletCollateral.input.txHash,
-          walletCollateral.input.outputIndex,
-          walletCollateral.output.amount,
-          walletCollateral.output.address,
-        )
-        .requiredSignerHash(walletVK)
-        .complete()
-
-        const signedTx = await wallet.signTx(unsignedTx);
-        const txHash = await wallet.submitTx(signedTx);
-        txBuilder.reset();
-
-        console.log(`create campaign txHash: ${txHash}`);
-    } catch(err) {
-      console.log(err);
+    if (!walletCollateral || !blockchainProvider || !txBuilder) {
+      throw new Error("Wallet parameters not set up correctly!");
     }
-  }
 
-  const isFormValid =
-    formData.title &&
-    formData.description &&
-    formData.targetAmount &&
-    // formData.endDate &&
-    formData.category;
+    const campaignIdHex = stringToHex(formData.title);
+
+    const {
+      creatorUtxoRef,
+      ratifyValidatorScript,
+      ratifyPolicy,
+      ratifyAddress,
+      creatorNftName,
+      creatorUtxoNFTName,
+    } = await getValidator(walletVK, walletSK, campaignIdHex, blockchainProvider);
+
+    const creatorDatum = mConStr0([
+      campaignIdHex, // campaign ID
+      mPubKeyAddress(walletVK, walletSK), // creator address
+      0, // current_funds
+      mConStr1([Number(formData.targetAmount)]), // funding_goal
+    ]);
+
+    const unsignedTx = await txBuilder
+      .txIn(
+        creatorUtxoRef.input.txHash,
+        creatorUtxoRef.input.outputIndex,
+        creatorUtxoRef.output.amount,
+        creatorUtxoRef.output.address,
+      )
+      .mintPlutusScriptV3()
+      .mint("1", ratifyPolicy, creatorNftName)
+      .mintingScript(ratifyValidatorScript)
+      .mintRedeemerValue(mConStr0([]))
+      .mintPlutusScriptV3()
+      .mint("1", ratifyPolicy, creatorUtxoNFTName)
+      .mintingScript(ratifyValidatorScript)
+      .mintRedeemerValue(mConStr0([]))
+      .txOut(ratifyAddress, [{ unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" }])
+      .txOutInlineDatumValue(creatorDatum)
+      .changeAddress(address)
+      .selectUtxosFrom(walletUtxos)
+      .txInCollateral(
+        walletCollateral.input.txHash,
+        walletCollateral.input.outputIndex,
+        walletCollateral.output.amount,
+        walletCollateral.output.address,
+      )
+      .requiredSignerHash(walletVK)
+      .complete();
+
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+    txBuilder.reset();
+
+    return txHash;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!address || !isFormValid) {
+      setToast({ message: "Please fill all required fields correctly and connect your wallet.", type: "error" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setToast(null);
+
+    try {
+      const txHash = await createCampaign();
+      setToast({ message: `Campaign created successfully! TxHash: ${txHash}`, type: "success" });
+      // Redirect after a short delay to let user see the toast
+      setTimeout(() => router.push("/"), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setToast({ message: `Failed to create campaign: ${err.message || err}`, type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen py-12">
       <div className="container mx-auto px-4 max-w-4xl">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-slate-800 mb-4">
-            Start Your Campaign
-          </h1>
+          <h1 className="text-4xl font-bold text-slate-800 mb-4">Start Your Campaign</h1>
           <p className="text-xl text-slate-600 max-w-2xl mx-auto">
             Create a crowdfunding campaign and connect with supporters who believe in your vision.
           </p>
@@ -146,25 +163,29 @@ export default function StartCampaign() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Example form fields */}
               <input
                 className="w-full border p-2 rounded"
                 placeholder="Title"
                 value={formData.title}
-                onChange={e => handleInputChange("title", e.target.value)}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                required
               />
               <textarea
                 className="w-full border p-2 rounded"
                 placeholder="Description"
                 value={formData.description}
-                onChange={e => handleInputChange("description", e.target.value)}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                required
               />
               <input
                 className="w-full border p-2 rounded"
                 placeholder="Target Amount (ADA)"
                 type="number"
+                min="0"
+                step="0.01"
                 value={formData.targetAmount}
-                onChange={e => handleInputChange("targetAmount", e.target.value)}
+                onChange={(e) => handleInputChange("targetAmount", e.target.value)}
+                required
               />
               <input
                 className="w-full border p-2 rounded"
@@ -172,19 +193,20 @@ export default function StartCampaign() {
                 type="date"
                 value={formData.endDate}
                 disabled={true}
-                onChange={e => handleInputChange("endDate", e.target.value)}
+                onChange={(e) => handleInputChange("endDate", e.target.value)}
               />
               <input
                 className="w-full border p-2 rounded"
                 placeholder="Category"
                 value={formData.category}
-                onChange={e => handleInputChange("category", e.target.value)}
+                onChange={(e) => handleInputChange("category", e.target.value)}
+                required
               />
               <input
                 className="w-full border p-2 rounded"
                 placeholder="Image URL"
                 value={formData.imageUrl}
-                onChange={e => handleInputChange("imageUrl", e.target.value)}
+                onChange={(e) => handleInputChange("imageUrl", e.target.value)}
               />
 
               <div className="flex gap-4 pt-6">
@@ -193,15 +215,12 @@ export default function StartCampaign() {
                   variant="outline"
                   onClick={() => router.push("/")}
                   className="flex-1 h-12"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    createCampaign();
-                  }}
                   disabled={!address || !isFormValid || isSubmitting}
                   className="flex-1 h-12 bg-cardano-600 hover:bg-cardano-700"
                 >
@@ -212,6 +231,9 @@ export default function StartCampaign() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Toast notifications */}
+      {toast && <Toast message={toast.message} type={toast.type} />}
     </div>
   );
 }
