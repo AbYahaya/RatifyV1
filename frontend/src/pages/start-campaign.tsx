@@ -3,11 +3,23 @@ import { useRouter } from "next/router";
 import { CardanoWallet, useAddress } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { deserializeAddress, MaestroProvider, mConStr0, mConStr1, MeshTxBuilder, mPubKeyAddress, stringToHex } from "@meshsdk/core";
+import { useWallet } from "@/components/WalletConnection";
+import { getValidator } from "@/lib/contract";
 
 export default function StartCampaign() {
   const router = useRouter();
-  const address = useAddress();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    wallet,
+    walletVK,
+    walletSK,
+    address,
+    blockchainProvider,
+    txBuilder,
+    walletUtxos,
+    walletCollateral,
+  } = useWallet();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -34,11 +46,75 @@ export default function StartCampaign() {
     }, 1500);
   };
 
+  const createCampaign = async () => {
+    try {
+      if (!walletCollateral || !blockchainProvider || !txBuilder) throw new Error("Paramters not set up correctly!");
+
+      const campaignIdHex = stringToHex(formData.title);
+      const {
+        creatorUtxoRef,
+        ratifyValidatorScript,
+        ratifyPolicy,
+        ratifyAddress,
+        creatorNftName,
+        creatorUtxoNFTName,
+      } = await getValidator(
+        walletVK,
+        walletSK,
+        campaignIdHex,
+        blockchainProvider,
+      );
+
+      const creatorDatum = mConStr0([
+          campaignIdHex, // campaign ID
+          mPubKeyAddress(walletVK, walletSK), // creator address
+          0, // current_funds
+          mConStr1([Number(formData.targetAmount)]) // funding_goal (here it's fundEnd: 100 ADA)
+      ]);
+
+      const unsignedTx = await txBuilder
+        .txIn(
+          creatorUtxoRef.input.txHash,
+          creatorUtxoRef.input.outputIndex,
+          creatorUtxoRef.output.amount,
+          creatorUtxoRef.output.address,
+        )
+        .mintPlutusScriptV3()
+        .mint("1", ratifyPolicy, creatorNftName)
+        .mintingScript(ratifyValidatorScript)
+        .mintRedeemerValue(mConStr0([]))
+        .mintPlutusScriptV3()
+        .mint("1", ratifyPolicy, creatorUtxoNFTName)
+        .mintingScript(ratifyValidatorScript)
+        .mintRedeemerValue(mConStr0([]))
+        .txOut(ratifyAddress, [ { unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" } ])
+        .txOutInlineDatumValue(creatorDatum)
+        .changeAddress(address)
+        .selectUtxosFrom(walletUtxos)
+        .txInCollateral(
+          walletCollateral.input.txHash,
+          walletCollateral.input.outputIndex,
+          walletCollateral.output.amount,
+          walletCollateral.output.address,
+        )
+        .requiredSignerHash(walletVK)
+        .complete()
+
+        const signedTx = await wallet.signTx(unsignedTx);
+        const txHash = await wallet.submitTx(signedTx);
+        txBuilder.reset();
+
+        console.log(`create campaign txHash: ${txHash}`);
+    } catch(err) {
+      console.log(err);
+    }
+  }
+
   const isFormValid =
     formData.title &&
     formData.description &&
     formData.targetAmount &&
-    formData.endDate &&
+    // formData.endDate &&
     formData.category;
 
   return (
@@ -95,6 +171,7 @@ export default function StartCampaign() {
                 placeholder="End Date"
                 type="date"
                 value={formData.endDate}
+                disabled={true}
                 onChange={e => handleInputChange("endDate", e.target.value)}
               />
               <input
@@ -121,6 +198,10 @@ export default function StartCampaign() {
                 </Button>
                 <Button
                   type="submit"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    createCampaign();
+                  }}
                   disabled={!address || !isFormValid || isSubmitting}
                   className="flex-1 h-12 bg-cardano-600 hover:bg-cardano-700"
                 >

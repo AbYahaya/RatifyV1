@@ -1,14 +1,19 @@
 // components/WalletConnection.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet as useMeshWallet, MeshProvider as MeshWalletProvider } from '@meshsdk/react';
+import { deserializeAddress, IWallet, MaestroProvider, MeshTxBuilder, UTxO } from '@meshsdk/core';
 
-// Define the shape of your wallet context
+// Shape of wallet context
 interface WalletContextType {
   connected: boolean;
-  wallet: any; // Replace with your wallet type if available
-  connect: () => Promise<void>;
-  disconnect: () => void;
-  address: string | null;
+  wallet: IWallet;
+  address: string,
+  walletVK: string
+  walletSK: string
+  txBuilder: MeshTxBuilder | null,
+  blockchainProvider: MaestroProvider | null,
+  walletUtxos: UTxO[],
+  walletCollateral: UTxO | null,
 }
 
 // Create the context
@@ -16,46 +21,78 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 // Provider component
 export function WalletConnectionProvider({ children }: { children: ReactNode }) {
-  // Use Mesh SDK's wallet hook internally
-  const meshWallet = useMeshWallet();
-
-  // You can add your own state or wrap meshWallet state here if needed
-  const [address, setAddress] = useState<string | null>(null);
+  const { wallet, connected, } = useMeshWallet();
+  const [address, setAddress] = useState<string>("");
+  const [walletVK, setWalletVK] = useState<string>("");
+  const [walletSK, setWalletSK] = useState<string>("");
+  const [walletUtxos, setWalletUtxos] = useState<UTxO[]>([]);
+  const [walletCollateral, setWalletCollateral] = useState<UTxO | null>(null);
+  const [txBuilder, setTxBuilder] = useState<MeshTxBuilder | null>(null);
+  const [blockchainProvider, setBlockchainProvider] = useState<MaestroProvider | null>(null);
 
   useEffect(() => {
-    if (meshWallet.connected && meshWallet.wallet) {
-      meshWallet.wallet.getChangeAddress().then(setAddress);
-    } else {
-      setAddress(null);
-    }
-  }, [meshWallet.connected]);
+    const handleWallet = async () => {
+      if (connected && wallet) {
+        try {
+          const walletAddress = await wallet.getChangeAddress();
+          const { pubKeyHash: walletVK, stakeCredentialHash: walletSK } = deserializeAddress(walletAddress);
 
-  const connect = async () => {
-    try {
-      await meshWallet.connect('eternal'); // or 'nami', 'flint', etc. based on your wallet
-      let addr = null;
-      if (meshWallet.wallet) {
-        addr = await meshWallet.wallet.getChangeAddress();
+          const blockchainProvider = new MaestroProvider({
+            network: 'Preview',
+            apiKey: "I83ys1iz1JDqZ9LndZMEBe3hIYjMXvoz",
+          });
+      
+          const txBuilder = new MeshTxBuilder({
+            fetcher: blockchainProvider,
+            submitter: blockchainProvider,
+            evaluator: blockchainProvider,
+          });
+          txBuilder.setNetwork('preview');
+
+          const walletUtxos = await wallet.getUtxos();
+          // const walletCollateral: UTxO = (await blockchainProvider.fetchUTxOs("cab914aca4fb11f8ed0d736915cc77a756a0b3abd8baebb2a39c734b60849c2e", 2))[0];
+          const walletCollateral: UTxO = (await wallet.getCollateral())[0];
+          if (!walletCollateral) {
+              throw new Error('No collateral utxo found 1');
+          }
+
+          setAddress(walletAddress);
+          setWalletVK(walletVK);
+          setWalletSK(walletSK);
+          setTxBuilder(txBuilder);
+          setBlockchainProvider(blockchainProvider)
+          setWalletUtxos(walletUtxos);
+          setWalletCollateral(walletCollateral)
+        } catch(err) {
+          console.log(err);
+        }
+      } else {
+        setAddress("");
+        setWalletVK("");
+        setWalletSK("");
+        setTxBuilder(null);
+        setBlockchainProvider(null)
+        setWalletUtxos([]);
+        setWalletCollateral(null)
       }
-      setAddress(addr);
-    } catch (err) {
-      console.error('Wallet connection failed:', err);
     }
-  };
 
-  const disconnect = () => {
-    meshWallet.disconnect();
-    setAddress(null);
-  };
+    handleWallet();
+
+  }, [connected]);
 
   return (
     <WalletContext.Provider
       value={{
-        connected: meshWallet.connected,
-        wallet: meshWallet,
-        connect,
-        disconnect,
+        connected,
+        wallet,
         address,
+        walletVK,
+        walletSK,
+        txBuilder,
+        blockchainProvider,
+        walletUtxos,
+        walletCollateral,
       }}
     >
       {children}
