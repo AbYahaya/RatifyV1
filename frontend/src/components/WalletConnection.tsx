@@ -1,126 +1,73 @@
-import React, { useEffect, useState } from "react";
-import { useWallet, useWalletList } from "@meshsdk/react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Wallet, Loader2 } from "lucide-react";
+// components/WalletConnection.tsx
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useWallet as useMeshWallet, MeshProvider as MeshWalletProvider } from '@meshsdk/react';
 
-const WalletConnection = () => {
-  const {
-    wallet,
-    state,
-    connected,
-    name,
-    connecting,
-    connect,
-    disconnect,
-    error,
-  } = useWallet();
-  const wallets = useWalletList();
-  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+// Define the shape of your wallet context
+interface WalletContextType {
+  connected: boolean;
+  wallet: any; // Replace with your wallet type if available
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  address: string | null;
+}
 
-  // Auto-connect if user previously selected a wallet
+// Create the context
+const WalletContext = createContext<WalletContextType | undefined>(undefined);
+
+// Provider component
+export function WalletConnectionProvider({ children }: { children: ReactNode }) {
+  // Use Mesh SDK's wallet hook internally
+  const meshWallet = useMeshWallet();
+
+  // You can add your own state or wrap meshWallet state here if needed
+  const [address, setAddress] = useState<string | null>(null);
+
   useEffect(() => {
-    const stored = localStorage.getItem("selectedWallet");
-    if (stored && !connected && !connecting) {
-      connect(stored);
-      setSelectedWallet(stored);
+    if (meshWallet.connected && meshWallet.wallet) {
+      meshWallet.wallet.getChangeAddress().then(setAddress);
+    } else {
+      setAddress(null);
     }
-  }, [connect, connected, connecting]);
+  }, [meshWallet.connected]);
 
-  // Save selected wallet in local storage for persistence
-  const handleConnect = (walletName: string) => {
-    setSelectedWallet(walletName);
-    localStorage.setItem("selectedWallet", walletName);
-    connect(walletName);
+  const connect = async () => {
+    try {
+      await meshWallet.connect('eternal'); // or 'nami', 'flint', etc. based on your wallet
+      let addr = null;
+      if (meshWallet.wallet) {
+        addr = await meshWallet.wallet.getChangeAddress();
+      }
+      setAddress(addr);
+    } catch (err) {
+      console.error('Wallet connection failed:', err);
+    }
+  };
+
+  const disconnect = () => {
+    meshWallet.disconnect();
+    setAddress(null);
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {connected ? (
-        <>
-          <Badge
-            variant="secondary"
-            className="bg-green-100 text-green-800 border-green-200 flex items-center gap-1"
-          >
-            <Wallet className="w-4 h-4" />
-            {name || "Wallet"} Connected
-          </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              disconnect();
-              localStorage.removeItem("selectedWallet");
-              setSelectedWallet(null);
-            }}
-            className="text-red-600 border-red-200 hover:bg-red-50"
-          >
-            Disconnect
-          </Button>
-        </>
-      ) : (
-        <>
-          {wallets.length === 0 ? (
-            <span className="text-sm text-red-600">
-              No Cardano wallet extension found
-            </span>
-          ) : (
-            wallets.map((w) => (
-              <Button
-                key={w.name}
-                onClick={() => handleConnect(w.name)}
-                disabled={connecting}
-                className="bg-cardano-600 hover:bg-cardano-700 text-white flex items-center mr-2"
-              >
-                {connecting && selectedWallet === w.name ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <Wallet className="w-4 h-4 mr-2" />
-                    Connect {w.name}
-                  </>
-                )}
-              </Button>
-            ))
-          )}
-        </>
-      )}
-      {/* Show connection state and error for debugging */}
-      {(() => {
-        let errorNode: React.ReactNode = null;
-        if (error) {
-          if (typeof error === "object" && error !== null && "message" in error) {
-            errorNode = (
-              <span className="text-red-600 ml-2">
-                Error: {(error as { message: string }).message}
-              </span>
-            );
-          } else if (typeof error === "string") {
-            errorNode = (
-              <span className="text-red-600 ml-2">
-                Error: {error}
-              </span>
-            );
-          } else {
-            errorNode = (
-              <span className="text-red-600 ml-2">
-                Error: Unknown error
-              </span>
-            );
-          }
-        }
-        return (
-          <span className="text-xs text-slate-400 ml-2">
-            {state}
-            {errorNode}
-          </span>
-        );
-      })()}
-    </div>
+    <WalletContext.Provider
+      value={{
+        connected: meshWallet.connected,
+        wallet: meshWallet,
+        connect,
+        disconnect,
+        address,
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
   );
-};
+}
 
-export default WalletConnection;
+// Custom hook to consume wallet context easily
+export function useWallet() {
+  const context = useContext(WalletContext);
+  if (!context) {
+    throw new Error('useWallet must be used within WalletConnectionProvider');
+  }
+  return context;
+}
