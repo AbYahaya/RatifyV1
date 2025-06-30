@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { CardanoWallet } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { mConStr0, mConStr1, mPubKeyAddress, stringToHex } from "@meshsdk/core";
+import { deserializeDatum, hexToString, mConStr0, mConStr1, mPubKeyAddress, serializeAddressObj, stringToHex, UTxO } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
+import { CreatorDatum } from "@/types/datums";
 
 // Simple toast component or replace with your UI library's toast
 const Toast = ({ message, type }: { message: string; type: "success" | "error" }) => (
@@ -18,12 +19,29 @@ const Toast = ({ message, type }: { message: string; type: "success" | "error" }
   </div>
 );
 
+type campaignInfoType = {
+  walletVK: string,
+  walletSK: string,
+  campaignIdHex: string,
+  creatorUtxoRef: UTxO,
+};
+
+type campaignDataType = {
+  campaignTitle: string,
+  creatorAddress: string,
+  currentGoal: number,
+  campaignGoal: number,
+}
+
 export default function StartCampaign() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [campaignInfo, setCampaignInfo] = useState<campaignInfoType[]>([]);
+  const [campaignData, setCampaignData] = useState<campaignDataType[]>([]);
 
   const {
+    connected,
     wallet,
     walletVK,
     walletSK,
@@ -55,21 +73,75 @@ export default function StartCampaign() {
     Number(formData.targetAmount) > 0 &&
     formData.category.trim() !== "";
 
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      try {
+        const campaigns = localStorage.getItem("campaigns");
+        if (!campaigns || !blockchainProvider) return;
+
+        const parsedCampaigns: campaignInfoType[] = JSON.parse(campaigns);
+        setCampaignInfo(parsedCampaigns);
+
+        const campaignData: campaignDataType[] = [];
+
+        for (let i = 0; i < parsedCampaigns.length; i++) {
+          const { walletVK: cwalletVK, walletSK: cWalletSK, campaignIdHex: cCampaignIdHex, creatorUtxoRef: cCreatorUtxoRef, } = parsedCampaigns[i];
+
+          // if (!blockchainProvider) throw new Error("Blockchain provider doesn't exist");
+          const { ratifyAddress } = await getValidator(cwalletVK, cWalletSK, cCampaignIdHex, blockchainProvider, cCreatorUtxoRef);
+
+          const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
+          console.log("allCampaignUtxos:", allCampaignUtxos), "\n", allCampaignUtxos.length;
+
+          const creatorUtxo = allCampaignUtxos.find((utxo) => {
+            if (!utxo.output.plutusData) return false;
+            const datum = deserializeDatum<CreatorDatum>(utxo.output.plutusData);
+            return !!(datum.fields[3]);
+          });
+          if (!creatorUtxo) throw new Error("Creator Utxo not found!");
+          console.log("creatorUtxo:", creatorUtxo, "\n", 1);
+
+          if (!creatorUtxo.output.plutusData) return false;
+          const creatorDatum = deserializeDatum<CreatorDatum>(creatorUtxo.output.plutusData);
+          const newCampaignData: campaignDataType = {
+            campaignTitle: hexToString(creatorDatum.fields[0].bytes),
+            creatorAddress: serializeAddressObj(creatorDatum.fields[1]),
+            currentGoal: Number(creatorDatum.fields[2].int),
+            campaignGoal: Number(creatorDatum.fields[3].fields[0].int),
+          }
+
+          campaignData.push(newCampaignData);
+        }
+
+        setCampaignData(campaignData);
+
+        console.log("campaignInfo:", campaignInfo);
+        console.log("campaignData:", campaignData);
+      } catch(err) {
+        console.log(err);
+      }
+    }
+
+    if (blockchainProvider) loadCampaigns();
+    console.log("connected:", connected);
+    console.log("blockchainProvider:", blockchainProvider);
+  }, [formData, blockchainProvider]);
+
   const createCampaign = async () => {
     if (!walletCollateral || !blockchainProvider || !txBuilder) {
       throw new Error("Wallet parameters not set up correctly!");
     }
 
     const campaignIdHex = stringToHex(formData.title);
+    const creatorUtxoRef = walletUtxos[0];
 
     const {
-      creatorUtxoRef,
       ratifyValidatorScript,
       ratifyPolicy,
       ratifyAddress,
       creatorNftName,
       creatorUtxoNFTName,
-    } = await getValidator(walletVK, walletSK, campaignIdHex, blockchainProvider);
+    } = await getValidator(walletVK, walletSK, campaignIdHex, blockchainProvider, creatorUtxoRef);
 
     const creatorDatum = mConStr0([
       campaignIdHex, // campaign ID
@@ -109,6 +181,11 @@ export default function StartCampaign() {
     const signedTx = await wallet.signTx(unsignedTx);
     const txHash = await wallet.submitTx(signedTx);
     txBuilder.reset();
+
+    const newCampaignInfo: campaignInfoType = { walletVK, walletSK, campaignIdHex, creatorUtxoRef };
+    const updatedCampaignInfo = [...campaignInfo, newCampaignInfo];
+    setCampaignInfo(updatedCampaignInfo);
+    localStorage.setItem("campaigns", JSON.stringify(updatedCampaignInfo));
 
     return txHash;
   };

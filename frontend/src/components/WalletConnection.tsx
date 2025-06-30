@@ -32,7 +32,8 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     const handleWallet = async () => {
-      if (connected && wallet) {
+      if (connected) {
+      // if (connected && wallet) {
         try {
           const walletAddress = await wallet.getChangeAddress();
           const { pubKeyHash: walletVK, stakeCredentialHash: walletSK } = deserializeAddress(walletAddress);
