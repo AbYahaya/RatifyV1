@@ -96,6 +96,7 @@ const CampaignDetails = () => {
         description: "There was an error processing your donation. Please try again.",
         variant: "destructive",
       });
+      console.log(error);
     } finally {
       setIsDonating(false);
     }

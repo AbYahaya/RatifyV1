@@ -1,6 +1,6 @@
 // components/WalletConnection.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useWallet as useMeshWallet, MeshProvider as MeshWalletProvider } from '@meshsdk/react';
+import { useWallet as useMeshWallet } from '@meshsdk/react';
 import { deserializeAddress, IWallet, MaestroProvider, MeshTxBuilder, UTxO } from '@meshsdk/core';
 
 // Shape of wallet context

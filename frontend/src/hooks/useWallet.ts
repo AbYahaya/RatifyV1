@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { WalletState } from '@/types/campaign';
 
 export const useWallet = () => {
@@ -34,11 +34,11 @@ export const useWallet = () => {
       });
       
       console.log('Wallet connected successfully');
-    } catch (error) {
+    } catch (err) {
       setWallet(prev => ({
         ...prev,
         isLoading: false,
-        error: 'Failed to connect wallet. Please try again.',
+        error: `Failed to connect wallet. Please try again. \n ${err}`,
       }));
     }
   };

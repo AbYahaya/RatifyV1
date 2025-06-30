@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { useRouter } from "next/router";
-import { CardanoWallet, useAddress } from "@meshsdk/react";
+import { CardanoWallet } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { deserializeAddress, MaestroProvider, mConStr0, mConStr1, MeshTxBuilder, mPubKeyAddress, stringToHex } from "@meshsdk/core";
+import { mConStr0, mConStr1, mPubKeyAddress, stringToHex } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
 
