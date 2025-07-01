@@ -1,3 +1,4 @@
+import { UTxO } from "@meshsdk/core";
 
 export interface Campaign {
   id: string;
@@ -29,3 +30,10 @@ export interface WalletState {
   isLoading: boolean;
   error: string | null;
 }
+
+export interface campaignInfoType {
+  walletVK: string,
+  walletSK: string,
+  campaignIdHex: string,
+  creatorUtxoRef: UTxO,
+};

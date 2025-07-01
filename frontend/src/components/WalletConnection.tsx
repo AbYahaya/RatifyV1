@@ -2,9 +2,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet as useMeshWallet } from '@meshsdk/react';
 import { deserializeAddress, IWallet, MaestroProvider, MeshTxBuilder, UTxO } from '@meshsdk/core';
+import { campaignInfoType } from '@/types/campaign';
 
 // Shape of wallet context
 interface WalletContextType {
+  walletReady: boolean,
   connected: boolean;
   wallet: IWallet;
   address: string,
@@ -14,6 +16,8 @@ interface WalletContextType {
   blockchainProvider: MaestroProvider | null,
   walletUtxos: UTxO[],
   walletCollateral: UTxO | null,
+  refreshWalletState: () => void,
+  updateCampaignInfo: (newCampaignInfo: campaignInfoType) => void,
 }
 
 // Create the context
@@ -29,62 +33,85 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
   const [walletCollateral, setWalletCollateral] = useState<UTxO | null>(null);
   const [txBuilder, setTxBuilder] = useState<MeshTxBuilder | null>(null);
   const [blockchainProvider, setBlockchainProvider] = useState<MaestroProvider | null>(null);
+  const [walletReady, setWalletReady] = useState<boolean>(false);
+  const [refreshWallet, setRefreshWallet] = useState<boolean>(false);
+  const [campaignInfo, setCampaignInfo] = useState<campaignInfoType[]>([]);
 
   useEffect(() => {
     const handleWallet = async () => {
-      if (connected) {
-      // if (connected && wallet) {
+      setWalletReady(false);
+
+      const blockchainProvider = new MaestroProvider({
+        network: 'Preview',
+        apiKey: "I83ys1iz1JDqZ9LndZMEBe3hIYjMXvoz",
+      });
+  
+      const txBuilder = new MeshTxBuilder({
+        fetcher: blockchainProvider,
+        submitter: blockchainProvider,
+        evaluator: blockchainProvider,
+      });
+      txBuilder.setNetwork('preview');
+
+      setTxBuilder(txBuilder);
+      setBlockchainProvider(blockchainProvider);
+
+      if (connected && wallet) {
         try {
           const walletAddress = await wallet.getChangeAddress();
+          console.log("walletAddress:", walletAddress);
           const { pubKeyHash: walletVK, stakeCredentialHash: walletSK } = deserializeAddress(walletAddress);
-
-          const blockchainProvider = new MaestroProvider({
-            network: 'Preview',
-            apiKey: "I83ys1iz1JDqZ9LndZMEBe3hIYjMXvoz",
-          });
-      
-          const txBuilder = new MeshTxBuilder({
-            fetcher: blockchainProvider,
-            submitter: blockchainProvider,
-            evaluator: blockchainProvider,
-          });
-          txBuilder.setNetwork('preview');
 
           const walletUtxos = await wallet.getUtxos();
           // const walletCollateral: UTxO = (await blockchainProvider.fetchUTxOs("cab914aca4fb11f8ed0d736915cc77a756a0b3abd8baebb2a39c734b60849c2e", 2))[0];
           const walletCollateral: UTxO = (await wallet.getCollateral())[0];
           if (!walletCollateral) {
-              throw new Error('No collateral utxo found 1');
+              throw new Error('No collateral utxo found');
           }
+
+          const campaigns: campaignInfoType[] = JSON.parse(localStorage.getItem("campaigns") || "[]");
 
           setAddress(walletAddress);
           setWalletVK(walletVK);
           setWalletSK(walletSK);
-          setTxBuilder(txBuilder);
-          setBlockchainProvider(blockchainProvider)
           setWalletUtxos(walletUtxos);
-          setWalletCollateral(walletCollateral)
+          setWalletCollateral(walletCollateral);
+          setWalletReady(true);
+          setCampaignInfo(campaigns);
         } catch(err) {
           console.log(err);
+          setWalletReady(false);
         }
       } else {
         setAddress("");
         setWalletVK("");
         setWalletSK("");
-        setTxBuilder(null);
-        setBlockchainProvider(null)
         setWalletUtxos([]);
-        setWalletCollateral(null)
+        setWalletCollateral(null);
+        setWalletReady(false);
+        setCampaignInfo([]);
       }
     }
 
     handleWallet();
 
-  }, [connected]);
+  }, [connected, wallet, refreshWallet]);
+
+  const refreshWalletState = () => {
+    setRefreshWallet(!refreshWallet);
+  }
+
+  const updateCampaignInfo = (newCampaignInfo: campaignInfoType) => {
+    const updatedCampaignInfo = [...campaignInfo, newCampaignInfo];
+
+    setCampaignInfo(updatedCampaignInfo);
+    localStorage.setItem("campaigns", JSON.stringify(updatedCampaignInfo));
+  }
 
   return (
     <WalletContext.Provider
       value={{
+        walletReady,
         connected,
         wallet,
         address,
@@ -94,6 +121,8 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
         blockchainProvider,
         walletUtxos,
         walletCollateral,
+        refreshWalletState,
+        updateCampaignInfo,
       }}
     >
       {children}
