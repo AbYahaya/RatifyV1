@@ -10,7 +10,7 @@ import {
 import { getValidator } from "@/lib/contract";
 import { CreatorDatum } from "@/types/datums";
 
-const BLOCKFROST_API_KEY = process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY;
+const BLOCKFROST_API_KEY = "previewJcu9fS5Np6A15UGYB1QayZwwMzi1p29Z";
 const BLOCKFROST_API_URL = "https://cardano-preview.blockfrost.io/api/v0";
 
 async function fetchTxHashes(address: string) {
