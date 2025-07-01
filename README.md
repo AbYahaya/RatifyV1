@@ -1,7 +1,7 @@
 # RatifyV1 - Decentralized Crowdfunding on Cardano
 
 [**🌐 Live Site → https://ratifyv.vercel.app**](https://ratifyv.vercel.app)
-
+NOTE: We are on preview tesnet, therefore you can interact with app on preview tesnet.
 ---
 
 ## Overview

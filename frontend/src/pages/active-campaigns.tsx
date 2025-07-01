@@ -1,100 +1,89 @@
 import React, { useEffect, useState } from "react";
+import { CardanoWallet, useAddress } from "@meshsdk/react";
 import { useRouter } from "next/router";
-import { CardanoWallet } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import {
   deserializeDatum,
-  hexToString,
   serializeAddressObj,
+  hexToString,
   UTxO,
 } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
 import { CreatorDatum } from "@/types/datums";
 
-type campaignInfoType = {
+type CampaignInfoType = {
   walletVK: string;
   walletSK: string;
   campaignIdHex: string;
   creatorUtxoRef: UTxO;
 };
 
-type campaignDataType = {
+type CampaignDataType = {
   campaignTitle: string;
   creatorAddress: string;
-  currentGoal: number;
-  campaignGoal: number;
   walletVK: string;
   walletSK: string;
   campaignIdHex: string;
   creatorUtxoRef: UTxO;
 };
 
-type TransactionInfo = {
-  txHash: string;
-  blockHeight: number;
+type TxInfo = {
+  hash: string;
+  block_height: number;
+  block_time: number;
 };
 
-const ActiveCampaigns = () => {
+export default function Transactions() {
   const router = useRouter();
-  const {
-    connected,
-    address,
-    blockchainProvider,
-  } = useWallet();
+  const address = useAddress();
+  const { blockchainProvider } = useWallet();
 
-  const [campaignInfo, setCampaignInfo] = useState<campaignInfoType[]>([]);
-  const [campaignData, setCampaignData] = useState<campaignDataType[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<CampaignDataType[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [errorCampaigns, setErrorCampaigns] = useState<string | null>(null);
 
-  // Transaction history states
-  const [showHistoryFor, setShowHistoryFor] = useState<string | null>(null);
-  const [transactionHistory, setTransactionHistory] = useState<TransactionInfo[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [campaignTxs, setCampaignTxs] = useState<Record<string, TxInfo[]>>({});
+  const [loadingTxs, setLoadingTxs] = useState<Record<string, boolean>>({});
+  const [errorTxs, setErrorTxs] = useState<Record<string, string>>({});
 
+  // Load campaigns using blockchainProvider and SDK utilities
   useEffect(() => {
-    const loadCampaigns = async () => {
-      if (!connected || !blockchainProvider) return;
+    if (!address || !blockchainProvider) {
+      setCampaigns([]);
+      return;
+    }
 
-      setLoading(true);
-      setError(null);
+    const loadCampaigns = async () => {
+      setLoadingCampaigns(true);
+      setErrorCampaigns(null);
 
       try {
-        const campaigns = localStorage.getItem("campaigns");
-        if (!campaigns) {
-          setCampaignData([]);
-          setLoading(false);
+        const stored = localStorage.getItem("campaigns");
+        if (!stored) {
+          setCampaigns([]);
+          setLoadingCampaigns(false);
           return;
         }
 
-        const parsedCampaigns: campaignInfoType[] = JSON.parse(campaigns);
-        setCampaignInfo(parsedCampaigns);
+        const parsed: CampaignInfoType[] = JSON.parse(stored);
+        const campaignDataList: CampaignDataType[] = [];
 
-        const campaignDataList: campaignDataType[] = [];
-
-        for (const c of parsedCampaigns) {
-          const {
-            walletVK: cwalletVK,
-            walletSK: cWalletSK,
-            campaignIdHex: cCampaignIdHex,
-            creatorUtxoRef: cCreatorUtxoRef,
-          } = c;
+        for (const c of parsed) {
+          const { walletVK, walletSK, campaignIdHex, creatorUtxoRef } = c;
 
           const { ratifyAddress } = await getValidator(
-            cwalletVK,
-            cWalletSK,
-            cCampaignIdHex,
+            walletVK,
+            walletSK,
+            campaignIdHex,
             blockchainProvider,
-            cCreatorUtxoRef
+            creatorUtxoRef
           );
 
-          const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(
-            ratifyAddress
-          );
+          // Fetch all UTxOs at the validator address
+          const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
 
+          // Find the creator UTxO with inline datum containing funding goal
           const creatorUtxo = allCampaignUtxos.find((utxo) => {
             if (!utxo.output.plutusData) return false;
             try {
@@ -105,55 +94,64 @@ const ActiveCampaigns = () => {
             }
           });
 
-          if (!creatorUtxo) continue;
+          if (!creatorUtxo || !creatorUtxo.output.plutusData) continue;
 
-          if (!creatorUtxo.output.plutusData) continue;
-          const creatorDatum = deserializeDatum<CreatorDatum>(
-            creatorUtxo.output.plutusData
-          );
+          const creatorDatum = deserializeDatum<CreatorDatum>(creatorUtxo.output.plutusData);
+          const creatorAddress = serializeAddressObj(creatorDatum.fields[1]);
 
-          campaignDataList.push({
-            campaignTitle: hexToString(creatorDatum.fields[0].bytes),
-            creatorAddress: serializeAddressObj(creatorDatum.fields[1]),
-            currentGoal: Number(creatorDatum.fields[2].int),
-            campaignGoal: Number(creatorDatum.fields[3].fields[0].int),
-            walletVK: cwalletVK,
-            walletSK: cWalletSK,
-            campaignIdHex: cCampaignIdHex,
-            creatorUtxoRef: cCreatorUtxoRef,
-          });
+          // Normalize addresses for case-insensitive comparison
+          if (address.toLowerCase() === creatorAddress.toLowerCase()) {
+            campaignDataList.push({
+              campaignTitle: hexToString(creatorDatum.fields[0].bytes),
+              creatorAddress,
+              walletVK,
+              walletSK,
+              campaignIdHex,
+              creatorUtxoRef,
+            });
+          }
         }
 
-        setCampaignData(campaignDataList);
+        setCampaigns(campaignDataList);
       } catch (err: any) {
-        setError(err.message || "Failed to load campaigns");
+        setErrorCampaigns(err.message || "Failed to load campaigns");
       } finally {
-        setLoading(false);
+        setLoadingCampaigns(false);
       }
     };
 
     loadCampaigns();
-  }, [connected, blockchainProvider]);
+  }, [address, blockchainProvider]);
 
-  // Placeholder handlers for Support and Cancel buttons
-  const handleSupportCampaign = (campaign: campaignDataType) => {
-    console.log("Support Campaign clicked for:", campaign.campaignTitle);
-    // Implementation to be added later
+  // Fetch transactions for a campaign using Blockfrost API
+  const fetchTxHashes = async (address: string) => {
+    const resp = await fetch(
+      `https://cardano-preview.blockfrost.io/api/v0/addresses/${address}/transactions?order=desc&count=10`,
+      {
+        headers: { project_id: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY || "" },
+      }
+    );
+    if (!resp.ok) throw new Error("Failed to fetch transaction hashes");
+    return resp.json();
   };
 
-  const handleCancelCampaign = (campaign: campaignDataType) => {
-    console.log("Cancel Campaign clicked for:", campaign.campaignTitle);
-    // Implementation to be added later
+  const fetchTxDetails = async (txHash: string) => {
+    const resp = await fetch(
+      `https://cardano-preview.blockfrost.io/api/v0/txs/${txHash}`,
+      {
+        headers: { project_id: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY || "" },
+      }
+    );
+    if (!resp.ok) throw new Error("Failed to fetch transaction details");
+    return resp.json();
   };
 
-  // Fetch transaction history for a single campaign only
-  const fetchTransactionHistory = async (campaign: campaignDataType) => {
-    if (!blockchainProvider) return;
+  const fetchCampaignTxs = async (campaign: CampaignDataType) => {
+    if (campaignTxs[campaign.campaignIdHex]) return; // Already loaded
+    if (!blockchainProvider) return; // Prevent passing null
 
-    setShowHistoryFor(campaign.campaignIdHex);
-    setTransactionHistory([]);
-    setHistoryLoading(true);
-    setHistoryError(null);
+    setLoadingTxs((prev) => ({ ...prev, [campaign.campaignIdHex]: true }));
+    setErrorTxs((prev) => ({ ...prev, [campaign.campaignIdHex]: "" }));
 
     try {
       const { ratifyAddress } = await getValidator(
@@ -164,139 +162,110 @@ const ActiveCampaigns = () => {
         campaign.creatorUtxoRef
       );
 
-      // MaestroProvider workaround: fetch UTxOs instead of transactions
-      const utxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
-      console.log("Fetched UTXOs for campaign:", utxos);
+      const txHashesResp = await fetchTxHashes(ratifyAddress);
+      const txDetails = await Promise.all(
+        txHashesResp.map((tx: any) => fetchTxDetails(tx.tx_hash))
+      );
 
-      // Map UTxOs to transaction info
-      const txInfoList: TransactionInfo[] = utxos
-        .filter((utxo: any) => utxo.txHash || utxo.tx_hash) // filter valid tx hashes
-        .map((utxo: any) => ({
-          txHash: utxo.txHash || utxo.tx_hash,
-          blockHeight: utxo.blockHeight || utxo.block_height || 0,
-        }));
-
-      setTransactionHistory(txInfoList);
+      setCampaignTxs((prev) => ({
+        ...prev,
+        [campaign.campaignIdHex]: txDetails,
+      }));
     } catch (err: any) {
-      setHistoryError(err.message || "Failed to fetch transaction history");
+      setErrorTxs((prev) => ({
+        ...prev,
+        [campaign.campaignIdHex]: err.message || "Failed to fetch transactions",
+      }));
     } finally {
-      setHistoryLoading(false);
+      setLoadingTxs((prev) => ({ ...prev, [campaign.campaignIdHex]: false }));
     }
   };
 
-  return (
-    <div className="min-h-screen py-12 bg-white/50">
-      <div className="container mx-auto px-4 max-w-4xl">
-        {/* Header */}
-        <div className="mb-10 flex justify-between items-center">
-          <h1 className="text-4xl font-bold text-slate-800">Active Campaigns</h1>
-          <Button
-            onClick={() => router.push("/start-campaign")}
-            className="bg-cardano-600 hover:bg-cardano-700 text-white"
-          >
-            Start New Campaign
-          </Button>
+  if (!address) {
+    return (
+      <div className="container mx-auto py-8 text-center text-gray-100 bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen px-4">
+        <h1 className="text-3xl font-bold mb-4">Transaction History</h1>
+        <div className="mb-6 flex justify-center">
+          <CardanoWallet label="Connect Wallet" persist={true} />
         </div>
-
-        {/* Wallet Connect */}
-        {!connected && (
-          <div className="mb-6 flex justify-center">
-            <CardanoWallet label="Connect Wallet to Load Campaigns" persist={true} />
-          </div>
-        )}
-
-        {/* Loading & Error */}
-        {loading && (
-          <p className="text-center text-slate-700 text-lg font-medium">Loading campaigns...</p>
-        )}
-        {error && (
-          <p className="text-center text-red-600 font-semibold">{error}</p>
-        )}
-
-        {/* No campaigns */}
-        {!loading && campaignData.length === 0 && connected && (
-          <p className="text-center text-slate-600 text-lg font-medium">
-            No active campaigns found.
-          </p>
-        )}
-
-        {/* Campaign List */}
-        <div className="space-y-6">
-          {campaignData.map((campaign, idx) => (
-            <Card key={idx} className="gradient-card border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle className="text-2xl text-slate-800">
-                  {campaign.campaignTitle}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-2">
-                  <strong>Creator:</strong>{" "}
-                  <code className="font-mono text-sm">{campaign.creatorAddress}</code>
-                </p>
-                <p className="mb-1">
-                  <strong>Current Funds:</strong> {campaign.currentGoal} ADA
-                </p>
-                <p>
-                  <strong>Funding Goal:</strong> {campaign.campaignGoal} ADA
-                </p>
-              </CardContent>
-
-              <CardFooter className="flex justify-end gap-4 pt-6 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => handleSupportCampaign(campaign)}
-                >
-                  Support Campaign
-                </Button>
-
-                {address === campaign.creatorAddress && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleCancelCampaign(campaign)}
-                  >
-                    Cancel Campaign
-                  </Button>
-                )}
-
-                <Button
-                  variant="secondary"
-                  onClick={() => fetchTransactionHistory(campaign)}
-                >
-                  View Campaign History
-                </Button>
-              </CardFooter>
-
-              {/* Transaction History Section */}
-              {showHistoryFor === campaign.campaignIdHex && (
-                <div className="mt-4 p-4 bg-white border border-gray-300 rounded shadow-sm max-h-64 overflow-y-auto">
-                  <h4 className="text-lg font-semibold mb-2">Transaction History</h4>
-                  {historyLoading && <p>Loading transactions...</p>}
-                  {historyError && <p className="text-red-600">{historyError}</p>}
-                  {!historyLoading && transactionHistory.length === 0 && <p>No transactions found.</p>}
-                  <ul className="list-disc list-inside space-y-1">
-                    {transactionHistory.map(tx => (
-                      <li key={tx.txHash} className="break-all">
-                        <a
-                          href={`https://preview.cardanoscan.io/transaction/${tx.txHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
-                        >
-                          TxHash: {tx.txHash}
-                        </a>{" "}
-                        (Block: {tx.blockHeight})
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
+        <p>Please connect your wallet to see your campaigns and transactions.</p>
       </div>
+    );
+  }
+
+  if (!loadingCampaigns && campaigns.length === 0) {
+    return (
+      <div className="container mx-auto py-8 text-center text-gray-100 bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen px-4">
+        <h1 className="text-3xl font-bold mb-4">No Campaigns Found</h1>
+        <Button
+          onClick={() => router.push("/active-campaigns")}
+          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-3 rounded shadow"
+        >
+          Load Campaigns
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8 px-4 max-w-4xl text-gray-100 bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen rounded-lg">
+      <h1 className="text-3xl font-bold mb-6">Your Campaigns & Transaction History</h1>
+
+      {loadingCampaigns && (
+        <p className="text-center text-gray-300">Loading your campaigns...</p>
+      )}
+      {errorCampaigns && (
+        <p className="text-red-500 bg-red-900/30 p-3 rounded mb-4">{errorCampaigns}</p>
+      )}
+
+      {campaigns.map((campaign) => (
+        <div
+          key={campaign.campaignIdHex}
+          className="mb-10 border border-gray-700 rounded p-6 shadow-lg bg-gray-800"
+        >
+          <h2 className="text-xl font-semibold mb-4 text-white">{campaign.campaignTitle}</h2>
+          <p className="mb-4 break-all">
+            Campaign ID: <code className="font-mono bg-gray-900 px-2 py-1 rounded">{campaign.campaignIdHex}</code>
+          </p>
+
+          <Button
+            onClick={() => fetchCampaignTxs(campaign)}
+            className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-2 rounded shadow"
+          >
+            Load Transaction History
+          </Button>
+
+          {loadingTxs[campaign.campaignIdHex] && <p>Loading transactions...</p>}
+          {errorTxs[campaign.campaignIdHex] && (
+            <p className="text-red-500">{errorTxs[campaign.campaignIdHex]}</p>
+          )}
+
+          {campaignTxs[campaign.campaignIdHex] &&
+            campaignTxs[campaign.campaignIdHex].length === 0 && (
+              <p>No transactions found for this campaign.</p>
+            )}
+
+          {campaignTxs[campaign.campaignIdHex] &&
+            campaignTxs[campaign.campaignIdHex].length > 0 && (
+              <ul className="list-disc list-inside space-y-2 max-h-64 overflow-y-auto text-gray-300">
+                {campaignTxs[campaign.campaignIdHex].map((tx: any) => (
+                  <li key={tx.hash} className="break-all">
+                    <a
+                      href={`https://preview.cardanoscan.io/transaction/${tx.hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:underline"
+                    >
+                      {tx.hash.slice(0, 12)}...
+                    </a>{" "}
+                    | Block: {tx.block_height} | Time:{" "}
+                    {new Date(tx.block_time * 1000).toLocaleString()}
+                  </li>
+                ))}
+              </ul>
+            )}
+        </div>
+      ))}
     </div>
   );
-};
-
-export default ActiveCampaigns;
+}
