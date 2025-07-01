@@ -21,7 +21,7 @@ Campaign Management: Create, view, and manage crowdfunding campaigns.
 
 Donation Tracking: Donors can track their contributions and campaign progress in real-time.
 
-Automated Refunds: Donors can claim refunds easily if campaigns do not reach their goals.
+Automated Refunds: Donors claim refunds easily if campaigns do not reach their goals.
 
 Creator Withdrawals: Campaign creators can withdraw funds once goals are met.
 
@@ -36,7 +36,6 @@ text
 |                   |          |                    |          |                    |
 +-------------------+          +--------------------+          +--------------------+
 
-Backend (Optional): API server for off-chain data storage & verification
 Frontend: Built with Next.js and React, providing UI and wallet connection.
 
 Mesh SDK: Handles wallet integration, transaction building, and submission.
@@ -58,27 +57,9 @@ APIs: Blockfrost for blockchain data verification
 
 Deployment: Vercel for frontend
 
-Getting Started
-Prerequisites
-Node.js (v16+ recommended)
-
-Yarn or npm
-
 Cardano wallet (e.g., Nami, Eternl) for testing
 
-Access to Blockfrost API (for backend or frontend verification)
-
-Installation
-bash
-git clone https://github.com/AbYahaya/RatifyV1.git
-cd RatifyV1/frontend
-npm install
-Running Locally
-bash
-npm run dev
-Open http://localhost:3000 in your browser.
-
-Connect your Cardano wallet via the wallet connection UI.
+Connect your Cardano wallet via the wallet connection UI.. Make sure your wallet has Collateral enabled to commu nicate with dApp, you can enable it in the settings of the wallet's account.
 
 Create or browse campaigns, donate, request refunds, or withdraw funds.
 
@@ -98,38 +79,10 @@ Donate: Select a campaign and donate ADA securely via smart contract escrow.
 
 Track Donations: View your donation history and campaign statuses.
 
-Refund: Claim refunds on failed campaigns with one click.
+Refund: Claim refunds on failed campaigns are automatic, handle by the smart contract.
 
 Withdraw: Campaign creators can withdraw funds after successful campaigns.
 
-Folder Structure
-text
-/frontend
-  /components       # React components (Donate, Refund, Withdraw, WalletConnection, etc.)
-  /lib              # Mesh SDK helpers, transaction builders
-  /pages             # Next.js pages (index, campaign/[id], transactions, 404, etc.)
-  /styles           # Global and component styles (Tailwind CSS)
-  /hooks            # Custom React hooks (e.g., useWallet)
-  /api              # Backend API routes (if any)
-  next.config.ts    # Next.js configuration
-  package.json      # Dependencies and scripts
-Contributing
-Contributions are welcome! Please:
-
-Fork the repository.
-
-Create a feature branch (git checkout -b feature/your-feature).
-
-Commit your changes (git commit -m 'Add your feature').
-
-Push to branch (git push origin feature/your-feature).
-
-Open a pull request.
-
-Please follow the existing code style and write tests where applicable.
-
-License
-This project is licensed under the MIT License.
 
 Team
 Yahaya Abdulrauf – Blockchain Developer, Software Engineer, Product Manager
