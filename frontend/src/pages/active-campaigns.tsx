@@ -146,7 +146,7 @@ const ActiveCampaigns = () => {
     // Implementation to be added later
   };
 
-  // Fetch transaction history for a campaign
+  // Fetch transaction history for a single campaign only
   const fetchTransactionHistory = async (campaign: campaignDataType) => {
     if (!blockchainProvider) return;
 
@@ -164,15 +164,17 @@ const ActiveCampaigns = () => {
         campaign.creatorUtxoRef
       );
 
-      // MaestroProvider does not have fetchAddressTransactions, so use fetchAddressUTxOs as a workaround
+      // MaestroProvider workaround: fetch UTxOs instead of transactions
       const utxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
       console.log("Fetched UTXOs for campaign:", utxos);
 
-      // Extract transaction hashes from UTXOs
-      const txInfoList: TransactionInfo[] = utxos.map((utxo: any) => ({
-        txHash: utxo.txHash || utxo.tx_hash || "Unknown TxHash",
-        blockHeight: utxo.blockHeight || utxo.block_height || 0,
-      }));
+      // Map UTxOs to transaction info
+      const txInfoList: TransactionInfo[] = utxos
+        .filter((utxo: any) => utxo.txHash || utxo.tx_hash) // filter valid tx hashes
+        .map((utxo: any) => ({
+          txHash: utxo.txHash || utxo.tx_hash,
+          blockHeight: utxo.blockHeight || utxo.block_height || 0,
+        }));
 
       setTransactionHistory(txInfoList);
     } catch (err: any) {
