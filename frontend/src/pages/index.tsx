@@ -4,6 +4,29 @@ import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { Plus, TrendingUp, Users, Target } from 'lucide-react';
 
+const DUMMY_CAMPAIGNS_DATA = [
+  {
+    campaignTitle: "Mock Campaign 1",
+    creatorAddress: "addr_test1qzmockaddress1",
+    currentGoal: 18000,
+    campaignGoal: 20000,
+    walletVK: "dummyVK1",
+    walletSK: "dummySK1",
+    campaignIdHex: "64656d6f43616d706169676e31",
+    creatorUtxoRef: {},
+  },
+  {
+    campaignTitle: "Mock Campaign 2",
+    creatorAddress: "addr_test1qzmockaddress2",
+    currentGoal: 25000,
+    campaignGoal: 25000,
+    walletVK: "dummyVK2",
+    walletSK: "dummySK2",
+    campaignIdHex: "64656d6f43616d706169676e32",
+    creatorUtxoRef: {},
+  },
+];
+
 const Home = () => {
   const router = useRouter();
 
@@ -13,31 +36,41 @@ const Home = () => {
 
   useEffect(() => {
     const campaignsRaw = localStorage.getItem("campaigns");
-    if (!campaignsRaw) {
-      setActiveCampaignCount(0);
-      setTotalCampaignCount(0);
-      setTotalRaised(0);
-      return;
+    let campaigns = [];
+
+    if (campaignsRaw) {
+      try {
+        campaigns = JSON.parse(campaignsRaw);
+      } catch (err) {
+        console.error("Failed to parse campaigns from localStorage", err);
+      }
     }
 
-    try {
-      const campaigns = JSON.parse(campaignsRaw);
+    // Combine stored campaigns with dummy campaigns if not already included
+    // (Assuming dummy campaigns are saved in localStorage as in active-campaigns.tsx)
+    // But to be safe, merge dummy campaigns here:
+    const combinedCampaigns = [...campaigns];
 
-      setTotalCampaignCount(campaigns.length);
-      setActiveCampaignCount(campaigns.length); // Adjust if you have status info
+    // Add dummy campaigns only if not already present (check by campaignIdHex)
+    DUMMY_CAMPAIGNS_DATA.forEach(dummy => {
+      if (!combinedCampaigns.find(c => c.campaignIdHex === dummy.campaignIdHex)) {
+        combinedCampaigns.push(dummy);
+      }
+    });
 
-      const totalRaisedAmount = campaigns.reduce((sum: number, campaign: any) => {
-        const raised = typeof campaign.currentGoal === 'number' ? campaign.currentGoal : 0;
-        return sum + raised;
-      }, 0);
+    setTotalCampaignCount(combinedCampaigns.length);
 
-      setTotalRaised(totalRaisedAmount);
-    } catch (err) {
-      console.error("Failed to parse campaigns from localStorage", err);
-      setActiveCampaignCount(0);
-      setTotalCampaignCount(0);
-      setTotalRaised(0);
-    }
+    // For active campaigns, you can define your own logic; here we consider all as active
+    setActiveCampaignCount(combinedCampaigns.length);
+
+    // Calculate total raised from currentGoal field (or 0 if missing)
+    const totalRaisedAmount = combinedCampaigns.reduce((sum, campaign: any) => {
+      // Use currentGoal field if present, else fallback to 0
+      const raised = typeof campaign.currentGoal === 'number' ? campaign.currentGoal : 0;
+      return sum + raised;
+    }, 0);
+
+    setTotalRaised(totalRaisedAmount);
   }, []);
 
   const stats = {
