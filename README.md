@@ -1,97 +1,94 @@
-RatifyV1
+# RatifyV1 - Decentralized Crowdfunding on Cardano
 
-RatifyV1 is a decentralized crowdfunding platform built on the Cardano blockchain that brings transparency and ease to the donor industry. It empowers donors to track donations and campaign statuses seamlessly without needing to navigate complex blockchain explorers. The platform also provides automated refunds for unsuccessful campaigns, enhancing trust and user experience.
+[**🌐 Live Site → https://ratifyv.vercel.app**](https://ratifyv.vercel.app)
 
+---
 
-Project Overview
-The donor industry faces significant challenges related to transparency, trust, and ease of use. RatifyV1 addresses these by leveraging Cardano’s secure and scalable blockchain infrastructure to:
+## Overview
 
-Provide real-time campaign status updates directly on the platform.
+**RatifyV1** is a decentralized crowdfunding platform built on the **Cardano blockchain**, designed to bring transparency, accountability, and simplicity to the donor industry. The platform empowers donors to track their contributions and campaign statuses seamlessly—without navigating complex blockchain explorers. It also offers automated refunds for unsuccessful campaigns, fostering trust and enhancing user experience.
 
-Allow donors to view their contributions without manual blockchain exploration.
+---
 
-Enable instant refunds if crowdfunding campaigns fail.
+## 🚀 Project Highlights
 
-Facilitate smooth interaction with smart contracts via Mesh SDK.
+* **Real-time Campaign Status:** Get instant updates on campaign progress directly on the platform.
+* **Donation Transparency:** View your contributions without interacting with raw blockchain data.
+* **Automated Refunds:** Donors receive refunds automatically if a campaign does not meet its funding goal.
+* **Seamless Wallet Integration:** Interact with the platform using popular Cardano wallets via **Mesh SDK**.
+* **Creator Withdrawals:** Campaign creators can withdraw funds when their goals are met.
+* **Security & Transparency:** All transactions and campaign logic are secured by Cardano's blockchain.
 
-Key Features
-Wallet Integration: Connect Cardano wallets seamlessly using Mesh SDK.
+---
 
-Campaign Management: Create, view, and manage crowdfunding campaigns.
+## 🛠️ Key Features
 
-Donation Tracking: Donors can track their contributions and campaign progress in real-time.
+✅ **Wallet Integration:** Connect your Cardano wallet (e.g., Nami, Eternl) seamlessly via Mesh SDK.
+✅ **Campaign Management:** Create, view, and manage crowdfunding campaigns with ease.
+✅ **Donation Tracking:** Track your contributions and campaign progress in real-time.
+✅ **Automated Refunds:** Claim refunds easily if campaigns do not reach their targets.
+✅ **Creator Withdrawals:** Withdraw funds securely after successful campaigns.
+✅ **Blockchain Transparency:** All data and transactions are recorded on-chain.
 
-Automated Refunds: Donors claim refunds easily if campaigns do not reach their goals.
+---
 
-Creator Withdrawals: Campaign creators can withdraw funds once goals are met.
+## 🏗️ Architecture
 
-Transparent & Secure: All transactions and campaign data are recorded on Cardano blockchain.
-
-Architecture
-text
+```
 +-------------------+          +--------------------+          +--------------------+
 |                   |          |                    |          |                    |
 |      Frontend     | <------> |    Mesh SDK Layer   | <------> |  Cardano Blockchain |
 |  (Next.js + React)|          | (Wallet & Tx Logic) |          |  (Smart Contracts)  |
 |                   |          |                    |          |                    |
 +-------------------+          +--------------------+          +--------------------+
+```
 
-Frontend: Built with Next.js and React, providing UI and wallet connection.
+* **Frontend:** Built with Next.js and React, providing UI and wallet connection.
+* **Mesh SDK:** Handles wallet integration, transaction building, and submission.
+* **Smart Contracts:** Built with Aiken/Plutus, managing escrow, minting, and campaign logic.
 
-Mesh SDK: Handles wallet integration, transaction building, and submission.
+---
 
-Smart Contracts: Aiken/Plutus contracts deployed on Cardano handle escrow, minting, and campaign logic.
+## 🧰 Tech Stack
 
-Backend (Optional): Stores campaign metadata, donation records, and syncs on-chain data.
+* **Frontend:** Next.js, React, TypeScript, Tailwind CSS
+* **Wallet Integration:** Mesh SDK (`@meshsdk/react`)
+* **Smart Contracts:** Aiken / Plutus (Cardano)
+* **APIs:** Blockfrost (for blockchain data verification)
+* **Deployment:** Vercel (frontend)
+* **Wallets:** Cardano wallets such as Nami, Eternl
 
-Tech Stack
-Frontend: Next.js, React, TypeScript, Tailwind CSS
+---
 
-Wallet Integration: Mesh SDK (@meshsdk/react)
+## 💡 Getting Started
 
-Smart Contracts: Aiken / Plutus on Cardano
+### 1. Connect Your Wallet
 
-Backend: Node.js/Express (optional, for metadata storage)
+Use the wallet connection button in the UI. Ensure your wallet has **Collateral enabled** to interact with the dApp (this can be done in your wallet's settings).
 
-APIs: Blockfrost for blockchain data verification
+### 2. Explore & Interact
 
-Deployment: Vercel for frontend
-
-Cardano wallet (e.g., Nami, Eternl) for testing
-
-Connect your Cardano wallet via the wallet connection UI.. Make sure your wallet has Collateral enabled to commu nicate with dApp, you can enable it in the settings of the wallet's account.
-
-Create or browse campaigns, donate, request refunds, or withdraw funds.
-
-Deployment
-The frontend is deployed on Vercel.
-
-Ensure environment variables for Blockfrost API keys and contract addresses are configured.
-
-Run npm run build and npm run start or deploy directly via Vercel CLI or dashboard.
-
-Usage
-Connect Wallet: Use the wallet connection button to connect your Cardano wallet.
-
-Create Campaign: Fill in campaign details and submit to create a new campaign.
-
-Donate: Select a campaign and donate ADA securely via smart contract escrow.
-
-Track Donations: View your donation history and campaign statuses.
-
-Refund: Claim refunds on failed campaigns are automatic, handle by the smart contract.
-
-Withdraw: Campaign creators can withdraw funds after successful campaigns.
+* **Create Campaign:** Fill in details and submit your campaign.
+* **Donate:** Select a campaign and donate ADA securely via smart contract escrow.
+* **Track Donations:** View your donation history and monitor campaign statuses.
+* **Refunds:** Failed campaigns trigger automatic refunds, handled by the smart contract.
+* **Withdrawals:** Campaign creators can withdraw funds after a successful campaign.
 
 
-Team
-Yahaya Abdulrauf – Blockchain Developer, Software Engineer, Product Manager
+## 👥 Team
 
-Samir Idris – Cardano Smart Contract Developer
+**Yahaya Abdulrauf** — Blockchain Developer, Software Engineer, Product Manager
+**Samir Idris** — Software Engineer, Cardano Smart Contract Developer
 
-Team Name: NexWave
+**Team Name:** NexWave
 
-Acknowledgments
-Cardano Foundation and Mesh SDK team for their excellent tools and documentation.
+---
 
-Open source contributors whose libraries and examples helped build this project.
+## 🙏 Acknowledgments
+
+* **Cardano Foundation** and the **Mesh SDK team** for their excellent tools and documentation.
+* Open source contributors whose libraries and examples made this project possible.
+
+---
+
+**Enjoy exploring RatifyV1 — making decentralized crowdfunding accessible and transparent.**
