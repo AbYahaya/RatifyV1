@@ -8,10 +8,15 @@ import {
   hexToString,
   serializeAddressObj,
   UTxO,
+  mConStr0,
+  mConStr1,
+  mConStr2,
+  mPubKeyAddress,
 } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
-import { CreatorDatum } from "@/types/datums";
+import { CreatorDatum, BackerDatum } from "@/types/datums";
+import { updateCurrentFunds } from "@/lib/updateCurrentFunds";
 
 type campaignInfoType = {
   walletVK: string;
@@ -40,7 +45,7 @@ const DUMMY_CAMPAIGNS: campaignInfoType[] = [
   {
     walletVK: "dummyVK1",
     walletSK: "dummySK1",
-    campaignIdHex: "64656d6f43616d706169676e31", // "demoCampaign1" hex
+    campaignIdHex: "64656d6f43616d706169676e31",
     creatorUtxoRef: {
       input: { txHash: "dummyTxHash1", outputIndex: 0 },
       output: { amount: [], address: "" },
@@ -49,7 +54,7 @@ const DUMMY_CAMPAIGNS: campaignInfoType[] = [
   {
     walletVK: "dummyVK2",
     walletSK: "dummySK2",
-    campaignIdHex: "64656d6f43616d706169676e32", // "demoCampaign2" hex
+    campaignIdHex: "64656d6f43616d706169676e32",
     creatorUtxoRef: {
       input: { txHash: "dummyTxHash2", outputIndex: 0 },
       output: { amount: [], address: "" },
@@ -86,6 +91,15 @@ const ActiveCampaigns = () => {
     connected,
     address,
     blockchainProvider,
+    txBuilder,
+    walletUtxos,
+    walletVK,
+    walletSK,
+    walletCollateral,
+    wallet,
+    refreshWalletState,
+    campaignInfoList,
+    replaceCampaignInfo,
   } = useWallet();
 
   const [campaignInfo, setCampaignInfo] = useState<campaignInfoType[]>([]);
@@ -93,13 +107,11 @@ const ActiveCampaigns = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Transaction history states
   const [showHistoryFor, setShowHistoryFor] = useState<string | null>(null);
   const [transactionHistory, setTransactionHistory] = useState<TransactionInfo[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  // Initialize dummy campaigns in localStorage if none exist
   useEffect(() => {
     const campaigns = localStorage.getItem("campaigns");
     if (!campaigns) {
@@ -107,114 +119,386 @@ const ActiveCampaigns = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const loadCampaigns = async () => {
-      if (!connected || !blockchainProvider) return;
+  const loadCampaigns = async () => {
+    if (!connected || !blockchainProvider) return;
 
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      try {
-        const campaigns = localStorage.getItem("campaigns");
-        if (!campaigns) {
-          setCampaignData([...DUMMY_CAMPAIGN_DATA]);
-          setLoading(false);
-          return;
-        }
-
-        const parsedCampaigns: campaignInfoType[] = JSON.parse(campaigns);
-        setCampaignInfo(parsedCampaigns);
-
-        const campaignDataList: campaignDataType[] = [];
-
-        for (const c of parsedCampaigns) {
-          const {
-            walletVK: cwalletVK,
-            walletSK: cWalletSK,
-            campaignIdHex: cCampaignIdHex,
-            creatorUtxoRef: cCreatorUtxoRef,
-          } = c;
-
-          const { ratifyAddress } = await getValidator(
-            cwalletVK,
-            cWalletSK,
-            cCampaignIdHex,
-            blockchainProvider,
-            cCreatorUtxoRef
-          );
-
-          const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(
-            ratifyAddress
-          );
-
-          const creatorUtxo = allCampaignUtxos.find((utxo) => {
-            if (!utxo.output.plutusData) return false;
-            try {
-              const datum = deserializeDatum<CreatorDatum>(utxo.output.plutusData);
-              return !!datum.fields[3];
-            } catch {
-              return false;
-            }
-          });
-
-          if (!creatorUtxo) continue;
-
-          if (!creatorUtxo.output.plutusData) continue;
-          const creatorDatum = deserializeDatum<CreatorDatum>(
-            creatorUtxo.output.plutusData
-          );
-
-          campaignDataList.push({
-            campaignTitle: hexToString(creatorDatum.fields[0].bytes),
-            creatorAddress: serializeAddressObj(creatorDatum.fields[1]),
-            currentGoal: Number(creatorDatum.fields[2].int),
-            campaignGoal: Number(creatorDatum.fields[3].fields[0].int),
-            walletVK: cwalletVK,
-            walletSK: cWalletSK,
-            campaignIdHex: cCampaignIdHex,
-            creatorUtxoRef: cCreatorUtxoRef,
-          });
-        }
-
-        // Append dummy campaigns to list
-        campaignDataList.push(...DUMMY_CAMPAIGN_DATA);
-
-        setCampaignData(campaignDataList);
-      } catch (err: any) {
-        setError(err.message || "Failed to load campaigns");
-      } finally {
+    try {
+      const campaignsRaw = localStorage.getItem("campaigns");
+      if (!campaignsRaw) {
+        setCampaignData([...DUMMY_CAMPAIGN_DATA]);
         setLoading(false);
+        return;
       }
-    };
 
+      const parsedCampaigns: campaignInfoType[] = JSON.parse(campaignsRaw);
+      setCampaignInfo(parsedCampaigns);
+
+      const campaignDataList: campaignDataType[] = [];
+
+      for (const c of parsedCampaigns) {
+        const {
+          walletVK: cwalletVK,
+          walletSK: cWalletSK,
+          campaignIdHex: cCampaignIdHex,
+          creatorUtxoRef: cCreatorUtxoRef,
+        } = c;
+
+        const { ratifyAddress } = await getValidator(
+          cwalletVK,
+          cWalletSK,
+          cCampaignIdHex,
+          blockchainProvider,
+          cCreatorUtxoRef
+        );
+
+        const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(
+          ratifyAddress
+        );
+        console.log(`Fetched ${allCampaignUtxos.length} UTxOs for campaign ${cCampaignIdHex}`);
+
+        const creatorUtxo = allCampaignUtxos.find((utxo) => {
+          if (!utxo.output.plutusData) return false;
+          try {
+            const datum = deserializeDatum<CreatorDatum>(utxo.output.plutusData);
+            return !!datum.fields[3];
+          } catch (e) {
+            console.warn("Failed to deserialize datum for utxo:", utxo.input.txHash, e);
+            return false;
+          }
+        });
+
+        if (!creatorUtxo) {
+          console.warn(`No creator UTxO found for campaign ${cCampaignIdHex}`);
+          continue;
+        }
+
+        if (!creatorUtxo.output.plutusData) {
+          console.warn(`Creator UTxO missing plutusData for campaign ${cCampaignIdHex}`);
+          continue;
+        }
+
+        const creatorDatum = deserializeDatum<CreatorDatum>(creatorUtxo.output.plutusData);
+
+        const currentGoal = Number(creatorDatum.fields[2].int);
+        const campaignGoal = Number(creatorDatum.fields[3].fields[0].int);
+
+        console.log(`Campaign ${cCampaignIdHex} - Current Goal: ${currentGoal}, Campaign Goal: ${campaignGoal}`);
+
+        campaignDataList.push({
+          campaignTitle: hexToString(creatorDatum.fields[0].bytes),
+          creatorAddress: serializeAddressObj(creatorDatum.fields[1]),
+          currentGoal,
+          campaignGoal,
+          walletVK: cwalletVK,
+          walletSK: cWalletSK,
+          campaignIdHex: cCampaignIdHex,
+          creatorUtxoRef: cCreatorUtxoRef,
+        });
+      }
+
+      campaignDataList.push(...DUMMY_CAMPAIGN_DATA);
+
+      setCampaignData(campaignDataList);
+    } catch (err: any) {
+      console.error("Error loading campaigns:", err);
+      setError(err.message || "Failed to load campaigns");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadCampaigns();
   }, [connected, blockchainProvider]);
 
-  // Helper to detect dummy campaigns
   const isDummyCampaign = (campaign: campaignDataType) =>
     campaign.walletVK.startsWith("dummyVK");
 
-  // Support campaign handler
-  const handleSupportCampaign = (campaign: campaignDataType) => {
+  const handleSupportCampaign = async (campaign: campaignDataType) => {
     if (isDummyCampaign(campaign)) {
       alert("This is a mock campaign. Please create a real campaign to interact.");
       return;
     }
-    // Your real support logic here
-    console.log("Support Campaign clicked for:", campaign.campaignTitle);
+    if (!blockchainProvider || !txBuilder || !walletCollateral) {
+      alert("Wallet parameters not initialized for support!");
+      return;
+    }
+
+    try {
+      const { ratifyAddress, ratifyValidatorScript, ratifyPolicy, backerNftName } = await getValidator(
+        campaign.walletVK,
+        campaign.walletSK,
+        campaign.campaignIdHex,
+        blockchainProvider,
+        campaign.creatorUtxoRef
+      );
+
+      const backerDatum = mConStr1([
+        campaign.campaignIdHex,
+        mPubKeyAddress(walletVK, walletSK, false),
+        mPubKeyAddress(campaign.walletVK, campaign.walletSK),
+      ]);
+
+      const unsignedTx = await txBuilder
+        .mintPlutusScriptV3()
+        .mint("1", ratifyPolicy, backerNftName)
+        .mintingScript(ratifyValidatorScript)
+        .mintRedeemerValue(mConStr1([]))
+        .txOut(ratifyAddress, [{ unit: "lovelace", quantity: "30000000" }])
+        .txOutInlineDatumValue(backerDatum)
+        .txOut(address, [{ unit: ratifyPolicy + backerNftName, quantity: "1" }])
+        .changeAddress(address)
+        .selectUtxosFrom(walletUtxos)
+        .txInCollateral(
+          walletCollateral.input.txHash,
+          walletCollateral.input.outputIndex,
+          walletCollateral.output.amount,
+          walletCollateral.output.address
+        )
+        .requiredSignerHash(walletVK)
+        .complete();
+
+      const signedTx = await wallet.signTx(unsignedTx);
+      await wallet.submitTx(signedTx);
+
+      alert("Support transaction submitted successfully!");
+      txBuilder.reset();
+      refreshWalletState();
+      await loadCampaigns();
+    } catch (err) {
+      alert("Support transaction failed: " + (err as Error).message);
+      txBuilder.reset();
+      refreshWalletState();
+    }
   };
 
-  // Cancel campaign handler
-  const handleCancelCampaign = (campaign: campaignDataType) => {
+  const handleCancelCampaign = async (campaign: campaignDataType) => {
     if (isDummyCampaign(campaign)) {
       alert("This is a mock campaign. No real cancellation possible.");
       return;
     }
-    // Your real cancel logic here
-    console.log("Cancel Campaign clicked for:", campaign.campaignTitle);
+    if (!blockchainProvider || !txBuilder || !walletCollateral) {
+      alert("Wallet parameters not initialized for cancel!");
+      return;
+    }
+
+    try {
+      const { ratifyAddress, ratifyValidatorScript } = await getValidator(
+        campaign.walletVK,
+        campaign.walletSK,
+        campaign.campaignIdHex,
+        blockchainProvider,
+        campaign.creatorUtxoRef
+      );
+
+      const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
+
+      const creatorUtxo = allCampaignUtxos.find((utxo) => {
+        if (!utxo.output.plutusData) return false;
+        const datum = deserializeDatum<CreatorDatum>(utxo.output.plutusData);
+        return !!datum.fields[3];
+      });
+
+      if (!creatorUtxo) throw new Error("Creator Utxo not found!");
+
+      const restCampaignUtxos = allCampaignUtxos.filter((utxo) => {
+        const plutusData = utxo.output.plutusData;
+        if (!plutusData) return false;
+        const datum = deserializeDatum<BackerDatum>(plutusData);
+        if (!datum.fields[2]) return false;
+        return utxo !== creatorUtxo;
+      });
+
+      let initialTx = txBuilder
+        .spendingPlutusScriptV3()
+        .txIn(
+          creatorUtxo.input.txHash,
+          creatorUtxo.input.outputIndex,
+          creatorUtxo.output.amount,
+          creatorUtxo.output.address
+        )
+        .txInScript(ratifyValidatorScript)
+        .spendingReferenceTxInInlineDatumPresent()
+        .spendingReferenceTxInRedeemerValue(mConStr0([]));
+
+      for (const utxo of restCampaignUtxos) {
+        initialTx = initialTx
+          .spendingPlutusScriptV3()
+          .txIn(
+            utxo.input.txHash,
+            utxo.input.outputIndex,
+            utxo.output.amount,
+            utxo.output.address
+          )
+          .txInScript(ratifyValidatorScript)
+          .spendingReferenceTxInInlineDatumPresent()
+          .spendingReferenceTxInRedeemerValue(mConStr0([]));
+      }
+
+      for (const utxo of restCampaignUtxos) {
+        const datum = deserializeDatum<BackerDatum>(utxo.output.plutusData!);
+        const backerAddress = serializeAddressObj(datum.fields[1]);
+        initialTx = initialTx.txOut(backerAddress, utxo.output.amount);
+      }
+
+      const unsignedTx = await initialTx
+        .changeAddress(address)
+        .selectUtxosFrom(walletUtxos)
+        .txInCollateral(
+          walletCollateral.input.txHash,
+          walletCollateral.input.outputIndex,
+          walletCollateral.output.amount,
+          walletCollateral.output.address
+        )
+        .requiredSignerHash(walletVK)
+        .complete();
+
+      const signedTx = await wallet.signTx(unsignedTx);
+      await wallet.submitTx(signedTx);
+
+      alert("Cancel transaction submitted successfully!");
+
+      const restCampaigns = campaignInfoList.filter(
+        (cInfo) => cInfo.creatorUtxoRef !== campaign.creatorUtxoRef
+      );
+      replaceCampaignInfo(restCampaigns);
+
+      txBuilder.reset();
+      refreshWalletState();
+      await loadCampaigns();
+    } catch (err) {
+      alert("Cancel transaction failed: " + (err as Error).message);
+      txBuilder.reset();
+      refreshWalletState();
+    }
   };
 
-  // Fetch transaction history handler
+  const handleUpdateCampaign = async (campaign: campaignDataType) => {
+    if (!blockchainProvider || !txBuilder || !walletCollateral) {
+      alert("Wallet parameters not initialized for update!");
+      return;
+    }
+
+    try {
+      const { ratifyAddress, ratifyValidatorScript } = await getValidator(
+        campaign.walletVK,
+        campaign.walletSK,
+        campaign.campaignIdHex,
+        blockchainProvider,
+        campaign.creatorUtxoRef
+      );
+
+      await updateCurrentFunds(
+        blockchainProvider,
+        txBuilder,
+        ratifyAddress,
+        ratifyValidatorScript,
+        campaign.campaignIdHex,
+        wallet,
+        address,
+        campaign.walletVK,
+        campaign.walletSK,
+        walletUtxos,
+        walletCollateral
+      );
+
+      alert("Update campaign funds transaction submitted successfully!");
+      txBuilder.reset();
+      refreshWalletState();
+      await loadCampaigns();
+    } catch (err) {
+      alert("Update transaction failed: " + (err as Error).message);
+      txBuilder.reset();
+      refreshWalletState();
+    }
+  };
+
+  const handleWithdrawFunds = async (campaign: campaignDataType) => {
+    if (!blockchainProvider || !txBuilder || !walletCollateral) {
+      alert("Wallet parameters not initialized for withdraw!");
+      return;
+    }
+
+    try {
+      const { ratifyAddress, ratifyValidatorScript } = await getValidator(
+        campaign.walletVK,
+        campaign.walletSK,
+        campaign.campaignIdHex,
+        blockchainProvider,
+        campaign.creatorUtxoRef
+      );
+
+      const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
+
+      const filteredCampaignUtxos = allCampaignUtxos.filter((utxo) => {
+        const plutusData = utxo.output.plutusData;
+        if (!plutusData) return false;
+        if (deserializeDatum<BackerDatum>(plutusData)) {
+          const datum = deserializeDatum<BackerDatum>(plutusData);
+          if (!datum.fields[2]) return false;
+        } else if (deserializeDatum<CreatorDatum>(plutusData)) {
+          const datum = deserializeDatum<CreatorDatum>(plutusData);
+          if (!datum.fields[3]) return false;
+        }
+
+        return true;
+      });
+
+      let initialTx = txBuilder;
+
+      for (const utxo of filteredCampaignUtxos) {
+        initialTx = initialTx
+          .spendingPlutusScriptV3()
+          .txIn(
+            utxo.input.txHash,
+            utxo.input.outputIndex,
+            utxo.output.amount,
+            utxo.output.address
+          )
+          .txInScript(ratifyValidatorScript)
+          .spendingReferenceTxInInlineDatumPresent()
+          .spendingReferenceTxInRedeemerValue(mConStr1([]));
+      }
+
+      for (const utxo of filteredCampaignUtxos) {
+        initialTx = initialTx.txOut(address, utxo.output.amount);
+      }
+
+      const unsignedTx = await initialTx
+        .changeAddress(address)
+        .selectUtxosFrom(walletUtxos)
+        .txInCollateral(
+          walletCollateral.input.txHash,
+          walletCollateral.input.outputIndex,
+          walletCollateral.output.amount,
+          walletCollateral.output.address
+        )
+        .requiredSignerHash(walletVK)
+        .complete();
+
+      const signedTx = await wallet.signTx(unsignedTx);
+      await wallet.submitTx(signedTx);
+
+      alert("Withdraw transaction submitted successfully!");
+
+      const restCampaigns = campaignInfoList.filter(
+        (cInfo) => cInfo.creatorUtxoRef !== campaign.creatorUtxoRef
+      );
+      replaceCampaignInfo(restCampaigns);
+
+      txBuilder.reset();
+      refreshWalletState();
+      await loadCampaigns();
+    } catch (err) {
+      alert("Withdraw transaction failed: " + (err as Error).message);
+      txBuilder.reset();
+      refreshWalletState();
+    }
+  };
+
   const fetchTransactionHistory = async (campaign: campaignDataType) => {
     if (isDummyCampaign(campaign)) {
       alert("This is a mock campaign. Please create a real campaign to view transaction history.");
@@ -378,12 +662,29 @@ const ActiveCampaigns = () => {
                   </Button>
 
                   {address === campaign.creatorAddress && (
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleCancelCampaign(campaign)}
-                    >
-                      Cancel Campaign
-                    </Button>
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={() => handleCancelCampaign(campaign)}
+                      >
+                        Cancel Campaign
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => handleUpdateCampaign(campaign)}
+                      >
+                        Update Campaign Funds
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => handleWithdrawFunds(campaign)}
+                        disabled={campaign.currentGoal < campaign.campaignGoal}
+                      >
+                        Withdraw
+                      </Button>
+                    </>
                   )}
 
                   <Button
@@ -394,7 +695,6 @@ const ActiveCampaigns = () => {
                   </Button>
                 </div>
 
-                {/* Transaction History Section */}
                 {showHistoryFor === campaign.campaignIdHex && (
                   <div className="mt-4 w-full bg-gray-900/50 border border-gray-700 rounded-xl p-4 max-h-64 overflow-y-auto">
                     <h4 className="text-lg font-semibold mb-3 text-gray-200">Transaction History</h4>

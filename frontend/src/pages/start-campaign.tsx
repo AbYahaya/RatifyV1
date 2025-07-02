@@ -36,13 +36,6 @@ const Toast = ({
   </div>
 );
 
-type campaignDataType = {
-  campaignTitle: string;
-  creatorAddress: string;
-  currentGoal: number;
-  campaignGoal: number;
-};
-
 export default function StartCampaign() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -130,7 +123,10 @@ export default function StartCampaign() {
       .mint("1", ratifyPolicy, creatorUtxoNFTName)
       .mintingScript(ratifyValidatorScript)
       .mintRedeemerValue(mConStr0([]))
-      .txOut(ratifyAddress, [{ unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" }])
+      .txOut(ratifyAddress, [
+        { unit: "lovelace", quantity: "3000000" },
+        { unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" },
+      ])
       .txOutInlineDatumValue(creatorDatum)
       .changeAddress(address!)
       .selectUtxosFrom(walletUtxos)
@@ -179,7 +175,6 @@ export default function StartCampaign() {
         message: `Campaign created successfully! TxHash: ${txHash}`,
         type: "success",
       });
-      // Redirect after a short delay to let user see the toast
       setTimeout(() => router.push("/"), 3000);
     } catch (err: any) {
       console.error(err);
@@ -202,7 +197,6 @@ export default function StartCampaign() {
           </p>
         </div>
 
-        {/* Mesh CardanoWallet Connect Button */}
         <div className="mb-6 flex justify-center">
           <CardanoWallet label="Connect Wallet" persist={true} />
         </div>
@@ -291,7 +285,6 @@ export default function StartCampaign() {
           </CardContent>
         </Card>
 
-        {/* Toast notifications */}
         {toast && <Toast message={toast.message} type={toast.type} />}
       </div>
     </div>
