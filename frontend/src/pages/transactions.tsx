@@ -132,7 +132,7 @@ export default function Transactions() {
         campaign.creatorUtxoRef
       );
 
-      // Fetch transactions from Blockfrost
+      // Fetch latest 10 transactions for the campaign address
       const resp = await axios.get(
         `${BLOCKFROST_API_URL}/addresses/${ratifyAddress}/transactions?order=desc&count=10`,
         {
@@ -140,12 +140,49 @@ export default function Transactions() {
         }
       );
 
-      // Each tx only has tx_hash, so you may want to fetch more details if needed
-      const txs = resp.data.map((tx: any) => ({
-        txHash: tx.tx_hash,
-        blockHeight: tx.block_height,
-        blockTime: tx.block_time,
-      }));
+      const txs = await Promise.all(
+        resp.data.map(async (tx: any) => {
+          const txHash = tx.tx_hash;
+
+          // Fetch detailed UTxO info for this transaction
+          const utxoResp = await axios.get(
+            `${BLOCKFROST_API_URL}/txs/${txHash}/utxos`,
+            {
+              headers: { project_id: BLOCKFROST_API_KEY },
+            }
+          );
+
+          // Calculate ADA amount sent to and from campaign address
+          const inputs = utxoResp.data.inputs;
+          const outputs = utxoResp.data.outputs;
+
+          // Helper to sum lovelace amounts for a given address
+          const sumLovelaceForAddress = (utxos: any[], address: string) => {
+            return utxos.reduce((sum, utxo) => {
+              if (utxo.address === address) {
+                const lovelaceAmount = utxo.amount.find(
+                  (amt: any) => amt.unit === "lovelace"
+                );
+                return sum + (lovelaceAmount ? parseInt(lovelaceAmount.quantity) : 0);
+              }
+              return sum;
+            }, 0);
+          };
+
+          const inputSum = sumLovelaceForAddress(inputs, ratifyAddress);
+          const outputSum = sumLovelaceForAddress(outputs, ratifyAddress);
+
+          const netLovelace = outputSum - inputSum; // positive = received, negative = spent
+
+          return {
+            txHash,
+            blockHeight: tx.block_height,
+            blockTime: tx.block_time,
+            amountAda: netLovelace / 1_000_000, // convert lovelace to ADA
+            direction: netLovelace > 0 ? "Receiving" : netLovelace < 0 ? "Spending" : "Neutral",
+          };
+        })
+      );
 
       setCampaignTxs((prev) => ({
         ...prev,
@@ -218,17 +255,31 @@ export default function Transactions() {
                   campaignTxs[campaign.campaignIdHex].length > 0 && (
                     <ul className="list-disc list-inside space-y-2 max-h-64 overflow-y-auto text-gray-300">
                       {campaignTxs[campaign.campaignIdHex].map((tx: any) => (
-                        <li key={tx.txHash} className="break-all">
+                        <li key={tx.txHash} className="break-all flex justify-between items-center">
                           <a
                             href={`https://preview.cardanoscan.io/transaction/${tx.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-400 hover:underline"
+                            className="text-blue-400 hover:underline truncate max-w-[60%]"
+                            title={tx.txHash}
                           >
                             {tx.txHash.slice(0, 12)}...
-                          </a>{" "}
-                          | Block: {tx.blockHeight} | Time:{" "}
-                          {new Date(tx.blockTime * 1000).toLocaleString()}
+                          </a>
+                          <div className="flex gap-4 items-center text-sm">
+                            <span>
+                              {tx.direction === "Receiving" && (
+                                <span className="text-green-400 font-semibold">+{tx.amountAda.toFixed(6)} ADA</span>
+                              )}
+                              {tx.direction === "Spending" && (
+                                <span className="text-red-400 font-semibold">-{Math.abs(tx.amountAda).toFixed(6)} ADA</span>
+                              )}
+                              {tx.direction === "Neutral" && <span className="text-gray-400">0 ADA</span>}
+                            </span>
+                            <span className="text-gray-400">| Block: {tx.blockHeight}</span>
+                            <span className="text-gray-400">
+                              | {new Date(tx.blockTime * 1000).toLocaleString()}
+                            </span>
+                          </div>
                         </li>
                       ))}
                     </ul>
