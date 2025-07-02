@@ -1,7 +1,7 @@
 // components/WalletConnection.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet as useMeshWallet } from '@meshsdk/react';
-import { deserializeAddress, IWallet, MaestroProvider, MeshTxBuilder, UTxO } from '@meshsdk/core';
+import { BlockfrostProvider, deserializeAddress, IWallet, MaestroProvider, MeshTxBuilder, UTxO } from '@meshsdk/core';
 import { campaignInfoType } from '@/types/campaign';
 
 // Shape of wallet context
@@ -17,7 +17,9 @@ interface WalletContextType {
   walletUtxos: UTxO[],
   walletCollateral: UTxO | null,
   refreshWalletState: () => void,
+  campaignInfoList: campaignInfoType[],
   updateCampaignInfo: (newCampaignInfo: campaignInfoType) => void,
+  replaceCampaignInfo: (newCampaignInfoList: campaignInfoType[]) => void
 }
 
 // Create the context
@@ -42,14 +44,17 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
       setWalletReady(false);
 
       const blockchainProvider = new MaestroProvider({
-        network: 'Preview',
+        network: "Preview",
         apiKey: "I83ys1iz1JDqZ9LndZMEBe3hIYjMXvoz",
       });
-  
+      // const blockchainProvider = new BlockfrostProvider("preview8CQGesUBcSE17REM7CB4NL0nKhLClmYD");
+      // const evaluator = new OfflineEvaluator(blockchainProvider, "preview");
+
       const txBuilder = new MeshTxBuilder({
         fetcher: blockchainProvider,
         submitter: blockchainProvider,
         evaluator: blockchainProvider,
+        verbose: false,
       });
       txBuilder.setNetwork('preview');
 
@@ -59,8 +64,8 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
       if (connected && wallet) {
         try {
           const walletAddress = await wallet.getChangeAddress();
-          console.log("walletAddress:", walletAddress);
           const { pubKeyHash: walletVK, stakeCredentialHash: walletSK } = deserializeAddress(walletAddress);
+          console.log("walletVK:", walletVK);
 
           const walletUtxos = await wallet.getUtxos();
           // const walletCollateral: UTxO = (await blockchainProvider.fetchUTxOs("cab914aca4fb11f8ed0d736915cc77a756a0b3abd8baebb2a39c734b60849c2e", 2))[0];
@@ -107,6 +112,11 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
     setCampaignInfo(updatedCampaignInfo);
     localStorage.setItem("campaigns", JSON.stringify(updatedCampaignInfo));
   }
+  
+  const replaceCampaignInfo = (newCampaignInfoList: campaignInfoType[]) => {
+    setCampaignInfo(newCampaignInfoList);
+    localStorage.setItem("campaigns", JSON.stringify(newCampaignInfoList));
+  }
 
   return (
     <WalletContext.Provider
@@ -122,7 +132,9 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
         walletUtxos,
         walletCollateral,
         refreshWalletState,
+        campaignInfoList: campaignInfo,
         updateCampaignInfo,
+        replaceCampaignInfo,
       }}
     >
       {children}

@@ -1,8 +1,8 @@
-import { applyParamsToScript, builtinByteString, MaestroProvider, outputReference, pubKeyAddress, resolveScriptHash, serializePlutusScript, stringToHex, UTxO } from "@meshsdk/core";
+import { applyParamsToScript, BlockfrostProvider, builtinByteString, MaestroProvider, outputReference, pubKeyAddress, resolveScriptHash, serializePlutusScript, stringToHex, UTxO } from "@meshsdk/core";
 import blueprint from "../../../smart_contracts/plutus.json" with { type: "json" }
 
 const getValidator = async (walletVK: string, walletSK: string, campaignIdHex: string, blockchainProvider: MaestroProvider, creatorUtxoRef: UTxO) => {
-  const adminVK = walletVK;
+  const adminVK = "96cbb27c96daf8cab890de6d7f87f5ffd025bf8ac80717cbc4fae7da";
 
   const creatorNftName = stringToHex("RTF-CC-") + campaignIdHex;
   const backerNftName = stringToHex("RTF-CB-") + campaignIdHex;

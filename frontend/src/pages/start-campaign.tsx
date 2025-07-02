@@ -71,61 +71,70 @@ export default function StartCampaign() {
       throw new Error("Wallet parameters not set up correctly!");
     }
 
-    const campaignIdHex = stringToHex(formData.title);
-    const creatorUtxoRef = walletUtxos[0];
+    try {
+      const campaignIdHex = stringToHex(formData.title);
+      const creatorUtxoRef = walletUtxos[0];
 
-    const {
-      ratifyValidatorScript,
-      ratifyPolicy,
-      ratifyAddress,
-      creatorNftName,
-      creatorUtxoNFTName,
-    } = await getValidator(walletVK, walletSK, campaignIdHex, blockchainProvider, creatorUtxoRef);
+      const {
+        ratifyValidatorScript,
+        ratifyPolicy,
+        ratifyAddress,
+        creatorNftName,
+        creatorUtxoNFTName,
+      } = await getValidator(walletVK, walletSK, campaignIdHex, blockchainProvider, creatorUtxoRef);
 
-    const creatorDatum = mConStr0([
-      campaignIdHex, // campaign ID
-      mPubKeyAddress(walletVK, walletSK), // creator address
-      0, // current_funds
-      mConStr1([Number(formData.targetAmount)]), // funding_goal
-    ]);
+      const creatorDatum = mConStr0([
+        campaignIdHex, // campaign ID
+        mPubKeyAddress(walletVK, walletSK), // creator address
+        0, // current_funds
+        mConStr1([Number(formData.targetAmount)]), // funding_goal
+      ]);
 
-    const unsignedTx = await txBuilder
-      .txIn(
-        creatorUtxoRef.input.txHash,
-        creatorUtxoRef.input.outputIndex,
-        creatorUtxoRef.output.amount,
-        creatorUtxoRef.output.address,
-      )
-      .mintPlutusScriptV3()
-      .mint("1", ratifyPolicy, creatorNftName)
-      .mintingScript(ratifyValidatorScript)
-      .mintRedeemerValue(mConStr0([]))
-      .mintPlutusScriptV3()
-      .mint("1", ratifyPolicy, creatorUtxoNFTName)
-      .mintingScript(ratifyValidatorScript)
-      .mintRedeemerValue(mConStr0([]))
-      .txOut(ratifyAddress, [{ unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" }])
-      .txOutInlineDatumValue(creatorDatum)
-      .changeAddress(address)
-      .selectUtxosFrom(walletUtxos)
-      .txInCollateral(
-        walletCollateral.input.txHash,
-        walletCollateral.input.outputIndex,
-        walletCollateral.output.amount,
-        walletCollateral.output.address,
-      )
-      .requiredSignerHash(walletVK)
-      .complete();
+      const unsignedTx = await txBuilder
+        .txIn(
+          creatorUtxoRef.input.txHash,
+          creatorUtxoRef.input.outputIndex,
+          creatorUtxoRef.output.amount,
+          creatorUtxoRef.output.address,
+        )
+        .mintPlutusScriptV3()
+        .mint("1", ratifyPolicy, creatorNftName)
+        .mintingScript(ratifyValidatorScript)
+        .mintRedeemerValue(mConStr0([]))
+        .mintPlutusScriptV3()
+        .mint("1", ratifyPolicy, creatorUtxoNFTName)
+        .mintingScript(ratifyValidatorScript)
+        .mintRedeemerValue(mConStr0([]))
+        .txOut(ratifyAddress, [
+          { unit: "lovelace", quantity: "3000000" },
+          { unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" }
+        ])
+        .txOutInlineDatumValue(creatorDatum)
+        .changeAddress(address)
+        .selectUtxosFrom(walletUtxos)
+        .txInCollateral(
+          walletCollateral.input.txHash,
+          walletCollateral.input.outputIndex,
+          walletCollateral.output.amount,
+          walletCollateral.output.address,
+        )
+        .requiredSignerHash(walletVK)
+        .complete();
 
-    const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await wallet.submitTx(signedTx);
-    txBuilder.reset();
-    refreshWalletState();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      txBuilder.reset();
+      refreshWalletState();
 
-    const newCampaignInfo: campaignInfoType = { walletVK, walletSK, campaignIdHex, creatorUtxoRef };
-    updateCampaignInfo(newCampaignInfo);
+      const newCampaignInfo: campaignInfoType = { walletVK, walletSK, campaignIdHex, creatorUtxoRef };
+      updateCampaignInfo(newCampaignInfo);
 
-    return txHash;
+      return txHash;
+    } catch (err) {
+      console.log(err);
+      txBuilder.reset();
+      refreshWalletState();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
