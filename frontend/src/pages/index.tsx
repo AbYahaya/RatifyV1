@@ -14,6 +14,7 @@ const DUMMY_CAMPAIGNS_DATA = [
     walletSK: "dummySK1",
     campaignIdHex: "64656d6f43616d706169676e31",
     creatorUtxoRef: {},
+    isActive: true,
   },
   {
     campaignTitle: "Mock Campaign 2",
@@ -24,30 +25,33 @@ const DUMMY_CAMPAIGNS_DATA = [
     walletSK: "dummySK2",
     campaignIdHex: "64656d6f43616d706169676e32",
     creatorUtxoRef: {},
+    isActive: true,
   },
 ];
 
 const Home = () => {
   const router = useRouter();
 
+  const [campaigns, setCampaigns] = useState<any[]>([]);
   const [activeCampaignCount, setActiveCampaignCount] = useState(0);
   const [totalCampaignCount, setTotalCampaignCount] = useState(0);
   const [totalRaised, setTotalRaised] = useState(0);
 
-  useEffect(() => {
+  // Load campaigns from localStorage and combine with dummy campaigns
+  const loadCampaigns = () => {
     const campaignsRaw = localStorage.getItem("campaigns");
-    let campaigns = [];
+    let storedCampaigns: any[] = [];
 
     if (campaignsRaw) {
       try {
-        campaigns = JSON.parse(campaignsRaw);
+        storedCampaigns = JSON.parse(campaignsRaw);
       } catch (err) {
         console.error("Failed to parse campaigns from localStorage", err);
       }
     }
 
-    // Combine stored campaigns with dummy campaigns if not already included
-    const combinedCampaigns = [...campaigns];
+    // Combine dummy campaigns and stored campaigns
+    const combinedCampaigns = [...storedCampaigns];
 
     DUMMY_CAMPAIGNS_DATA.forEach(dummy => {
       if (!combinedCampaigns.find(c => c.campaignIdHex === dummy.campaignIdHex)) {
@@ -55,18 +59,54 @@ const Home = () => {
       }
     });
 
-    setTotalCampaignCount(combinedCampaigns.length);
+    setCampaigns(combinedCampaigns);
+  };
 
-    // For active campaigns, you can define your own logic; here we consider all as active
-    setActiveCampaignCount(combinedCampaigns.length);
+  // Recalculate stats whenever campaigns state changes
+  useEffect(() => {
+    const dummyCount = DUMMY_CAMPAIGNS_DATA.length;
 
-    // Calculate total raised from currentGoal field (or 0 if missing)
-    const totalRaisedAmount = combinedCampaigns.reduce((sum, campaign: any) => {
-      const raised = typeof campaign.currentGoal === 'number' ? campaign.currentGoal : 0;
-      return sum + raised;
-    }, 0);
+    const activeCreatedCampaigns = campaigns.filter(
+      c => c.isActive !== false && !c.walletVK.startsWith("dummyVK")
+    );
+    const activeDummyCampaigns = campaigns.filter(
+      c => c.isActive !== false && c.walletVK.startsWith("dummyVK")
+    );
 
+    const totalCampaigns = campaigns.length;
+    const activeCampaigns = activeCreatedCampaigns.length + activeDummyCampaigns.length;
+
+    const totalRaisedDummy = activeDummyCampaigns.reduce(
+      (sum, c) => sum + (typeof c.currentGoal === "number" ? c.currentGoal : 0),
+      0
+    );
+
+    const totalRaisedCreated = activeCreatedCampaigns.reduce(
+      (sum, c) => sum + (typeof c.currentGoal === "number" ? c.currentGoal : 0),
+      0
+    );
+
+    const totalRaisedAmount = totalRaisedDummy + totalRaisedCreated;
+
+    setTotalCampaignCount(totalCampaigns);
+    setActiveCampaignCount(activeCampaigns);
     setTotalRaised(totalRaisedAmount);
+  }, [campaigns]);
+
+  // Load campaigns on mount and listen for localStorage changes
+  useEffect(() => {
+    loadCampaigns();
+
+    const onStorageChange = (e: StorageEvent) => {
+      if (e.key === "campaigns") {
+        loadCampaigns();
+      }
+    };
+    window.addEventListener("storage", onStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", onStorageChange);
+    };
   }, []);
 
   const stats = {
@@ -157,7 +197,6 @@ const Home = () => {
               Support innovative projects and make a difference in communities around the world.
             </p>
           </div>
-
           {/* Additional content or campaigns can go here */}
         </div>
       </section>
