@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
-import { Plus, TrendingUp, Users, Target } from 'lucide-react';
+import { Plus, TrendingUp, Users, Target, ExternalLink } from 'lucide-react';
 
 const DUMMY_CAMPAIGNS_DATA = [
   {
@@ -47,11 +47,8 @@ const Home = () => {
     }
 
     // Combine stored campaigns with dummy campaigns if not already included
-    // (Assuming dummy campaigns are saved in localStorage as in active-campaigns.tsx)
-    // But to be safe, merge dummy campaigns here:
     const combinedCampaigns = [...campaigns];
 
-    // Add dummy campaigns only if not already present (check by campaignIdHex)
     DUMMY_CAMPAIGNS_DATA.forEach(dummy => {
       if (!combinedCampaigns.find(c => c.campaignIdHex === dummy.campaignIdHex)) {
         combinedCampaigns.push(dummy);
@@ -65,7 +62,6 @@ const Home = () => {
 
     // Calculate total raised from currentGoal field (or 0 if missing)
     const totalRaisedAmount = combinedCampaigns.reduce((sum, campaign: any) => {
-      // Use currentGoal field if present, else fallback to 0
       const raised = typeof campaign.currentGoal === 'number' ? campaign.currentGoal : 0;
       return sum + raised;
     }, 0);
@@ -94,7 +90,7 @@ const Home = () => {
             <Link href="/start-campaign" passHref>
               <Button
                 size="lg"
-                className="bg-white text-cardano-600 hover:bg-blue-50 text-lg px-8 py-6 h-auto shadow-lg rounded-lg"
+                className="bg-white text-cardano-600 hover:bg-blue-50 text-lg px-8 py-6 h-auto shadow-lg rounded-lg flex items-center justify-center"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 Start a Campaign
@@ -103,7 +99,7 @@ const Home = () => {
             <Button
               size="lg"
               variant="outline"
-              className="border-gray-300 text-gray-300 hover:bg-white/10 text-lg px-8 py-6 h-auto shadow-sm rounded-lg"
+              className="border-gray-300 text-gray-300 hover:bg-white/10 text-lg px-8 py-6 h-auto shadow-sm rounded-lg flex items-center justify-center"
               onClick={() => router.push('/active-campaigns')}
             >
               Load Campaigns
@@ -111,9 +107,11 @@ const Home = () => {
             <Button
               size="lg"
               variant="outline"
-              className="border-gray-300 text-gray-300 hover:bg-white/10 text-lg px-8 py-6 h-auto shadow-sm rounded-lg"
+              className="border-gray-300 text-gray-300 hover:bg-white/10 text-lg px-8 py-6 h-auto shadow-sm rounded-lg flex items-center justify-center gap-2"
+              onClick={() => window.open('https://github.com/AbYahaya/RatifyV1/blob/main/README.md', '_blank')}
             >
               Learn More
+              <ExternalLink className="w-5 h-5" />
             </Button>
           </div>
         </div>
