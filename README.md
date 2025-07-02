@@ -1,12 +1,16 @@
 # RatifyV1 - Decentralized Crowdfunding on Cardano
 
 [**🌐 Live Site → https://ratifyv.vercel.app**](https://ratifyv.vercel.app)
-NOTE: We are on preview tesnet, therefore you can interact with app on preview tesnet.
+
+**NOTE:** We are on **Preview Testnet**, therefore you can interact with the app on the Cardano Preview Testnet.
+
 ---
 
 ## Overview
 
 **RatifyV1** is a decentralized crowdfunding platform built on the **Cardano blockchain**, designed to bring transparency, accountability, and simplicity to the donor industry. The platform empowers donors to track their contributions and campaign statuses seamlessly—without navigating complex blockchain explorers. It also offers automated refunds for unsuccessful campaigns, fostering trust and enhancing user experience.
+
+In addition, the platform mints **NFTs as receipts** for both campaign creation and individual donations. These NFTs serve as proof of participation and support.
 
 ---
 
@@ -15,6 +19,7 @@ NOTE: We are on preview tesnet, therefore you can interact with app on preview t
 * **Real-time Campaign Status:** Get instant updates on campaign progress directly on the platform.
 * **Donation Transparency:** View your contributions without interacting with raw blockchain data.
 * **Automated Refunds:** Donors receive refunds automatically if a campaign does not meet its funding goal.
+* **NFT Receipts:** NFTs are minted for campaign creation and donations as proof of participation.
 * **Seamless Wallet Integration:** Interact with the platform using popular Cardano wallets via **Mesh SDK**.
 * **Creator Withdrawals:** Campaign creators can withdraw funds when their goals are met.
 * **Security & Transparency:** All transactions and campaign logic are secured by Cardano's blockchain.
@@ -27,6 +32,7 @@ NOTE: We are on preview tesnet, therefore you can interact with app on preview t
 ✅ **Campaign Management:** Create, view, and manage crowdfunding campaigns with ease.
 ✅ **Donation Tracking:** Track your contributions and campaign progress in real-time.
 ✅ **Automated Refunds:** Claim refunds easily if campaigns do not reach their targets.
+✅ **NFT Receipts:** NFTs minted on campaign creation and donations as digital proof.
 ✅ **Creator Withdrawals:** Withdraw funds securely after successful campaigns.
 ✅ **Blockchain Transparency:** All data and transactions are recorded on-chain.
 
@@ -45,7 +51,7 @@ NOTE: We are on preview tesnet, therefore you can interact with app on preview t
 
 * **Frontend:** Built with Next.js and React, providing UI and wallet connection.
 * **Mesh SDK:** Handles wallet integration, transaction building, and submission.
-* **Smart Contracts:** Built with Aiken/Plutus, managing escrow, minting, and campaign logic.
+* **Smart Contracts:** Built with Aiken/Plutus, managing escrow, minting, campaign logic, and NFT issuance.
 
 ---
 
@@ -68,12 +74,13 @@ Use the wallet connection button in the UI. Ensure your wallet has **Collateral 
 
 ### 2. Explore & Interact
 
-* **Create Campaign:** Fill in details and submit your campaign.
-* **Donate:** Select a campaign and donate ADA securely via smart contract escrow.
+* **Create Campaign:** Fill in details and submit your campaign. Receive an NFT receipt upon creation.
+* **Donate:** Select a campaign and donate ADA securely via smart contract escrow. Receive an NFT receipt for your donation.
 * **Track Donations:** View your donation history and monitor campaign statuses.
 * **Refunds:** Failed campaigns trigger automatic refunds, handled by the smart contract.
 * **Withdrawals:** Campaign creators can withdraw funds after a successful campaign.
 
+---
 
 ## 👥 Team
 
