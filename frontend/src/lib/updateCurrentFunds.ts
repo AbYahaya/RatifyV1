@@ -10,6 +10,7 @@ import {
 } from "@meshsdk/core";
 import { BackerDatum, CreatorDatum } from "@/types/datums.js";
 import { BlockchainProviderType } from "@/types/general.js";
+import { adminVK } from "./contract";
 
 export const updateCurrentFunds = async (
   blockchainProvider: BlockchainProviderType,
@@ -24,8 +25,6 @@ export const updateCurrentFunds = async (
   walletUtxos: UTxO[],
   walletCollateral: UTxO
 ) => {
-  const adminVK = "4248e9343c5ffafcb0e6b15b77c9150ac34987222b7482f821ada341";
-
   try {
     const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
     const creatorUtxo = allCampaignUtxos.find((utxo: UTxO) => {

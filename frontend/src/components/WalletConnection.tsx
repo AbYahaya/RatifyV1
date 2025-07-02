@@ -47,7 +47,7 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
       // Ensure these are correctly typed or use `as any` if you face issues
       const bp = new MaestroProvider({
         network: 'Preview', // Use 'Preview' or 'Mainnet' as needed
-        apiKey: "I83ys1iz1JDqZ9LndZMEBe3hIYjMXvoz", // Replace with your actual Maestro API Key
+        apiKey: "xpK89bBiB0liZm1ktJFqOkp3fXCM88DS", // Replace with your actual Maestro API Key
       });
       const tb = new MeshTxBuilder({
         fetcher: bp,

@@ -364,6 +364,8 @@ const ActiveCampaigns = () => {
       const restCampaigns = campaignInfoList.filter(
         (cInfo) => cInfo.creatorUtxoRef !== campaign.creatorUtxoRef
       );
+      console.log("campaignInfoList:", campaignInfoList);
+      console.log("restCampaigns:", restCampaigns);
       replaceCampaignInfo(restCampaigns);
 
       txBuilder.reset();

@@ -124,7 +124,7 @@ export default function StartCampaign() {
       .mintingScript(ratifyValidatorScript)
       .mintRedeemerValue(mConStr0([]))
       .txOut(ratifyAddress, [
-        { unit: "lovelace", quantity: "3000000" },
+        { unit: "lovelace", quantity: "2000000" },
         { unit: ratifyPolicy + creatorUtxoNFTName, quantity: "1" },
       ])
       .txOutInlineDatumValue(creatorDatum)

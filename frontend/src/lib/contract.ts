@@ -11,6 +11,8 @@ import {
 } from "@meshsdk/core";
 import blueprint from "../../../smart_contracts/plutus.json" with { type: "json" };
 
+const adminVK = "96cbb27c96daf8cab890de6d7f87f5ffd025bf8ac80717cbc4fae7da";
+
 const getValidator = async (
   walletVK: string,
   walletSK: string,
@@ -18,8 +20,6 @@ const getValidator = async (
   blockchainProvider: MaestroProvider,
   creatorUtxoRef: UTxO
 ) => {
-  const adminVK = "4248e9343c5ffafcb0e6b15b77c9150ac34987222b7482f821ada341";
-
   const creatorNftName = stringToHex("RTF-CC-") + campaignIdHex;
   const backerNftName = stringToHex("RTF-CB-") + campaignIdHex;
   const creatorUtxoNFTName = stringToHex("CC-UTXO");
@@ -54,4 +54,4 @@ const getValidator = async (
   };
 };
 
-export { getValidator };
+export { adminVK, getValidator };
