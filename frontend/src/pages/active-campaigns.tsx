@@ -177,7 +177,8 @@ const ActiveCampaigns = () => {
         const backerUtxos = allCampaignUtxos.filter((utxo: UTxO) => {
           if (!utxo.output.plutusData) return false;
           const datum = deserializeDatum<BackerDatum>(utxo.output.plutusData);
-          return datum.fields[2] !== undefined;
+          if (!datum.fields[2]) return false;
+          return utxo !== creatorUtxo;
         });
 
         let updatedCurrentFunds = 0;
