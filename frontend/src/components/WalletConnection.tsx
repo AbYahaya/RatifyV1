@@ -2,7 +2,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet as useMeshWallet } from '@meshsdk/react';
 import { deserializeAddress, IWallet, MaestroProvider, MeshTxBuilder, UTxO } from '@meshsdk/core';
-import { campaignInfoType } from '@/types/campaign'; // Ensure this path is correct
+import { sanitizeForFirestore } from '@/lib/firestoreSanitizer';
+import { collection, getDocs, addDoc, setDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 // Shape of wallet context
 interface WalletContextType {
@@ -17,9 +19,9 @@ interface WalletContextType {
   walletUtxos: UTxO[];
   walletCollateral: UTxO | null;
   refreshWalletState: () => void;
-  campaignInfoList: campaignInfoType[]; // Added from colleague's version
-  updateCampaignInfo: (newCampaignInfo: campaignInfoType) => void;
-  replaceCampaignInfo: (newCampaignInfoList: campaignInfoType[]) => void; // Added from colleague's version
+  campaignInfoList: campaignInfoType[];
+  updateCampaignInfo: (newCampaignInfo: campaignInfoType) => Promise<void>;
+  replaceCampaignInfo: (newCampaignInfoList: campaignInfoType[]) => Promise<void>;
 }
 
 // Create the context
@@ -37,25 +39,35 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
   const [blockchainProvider, setBlockchainProvider] = useState<MaestroProvider | null>(null);
   const [walletReady, setWalletReady] = useState<boolean>(false);
   const [refreshWallet, setRefreshWallet] = useState<boolean>(false);
-  const [campaignInfo, setCampaignInfo] = useState<campaignInfoType[]>([]); // To store all campaign info
+  const [campaignInfo, setCampaignInfo] = useState<campaignInfoType[]>([]); // Store campaigns from Firestore
+
+  // Load campaigns from Firestore
+  const loadCampaignsFromFirestore = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "campaigns"));
+      const campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<campaignInfoType, 'id'>) })) as campaignInfoType[];
+      setCampaignInfo(campaigns);
+    } catch (error) {
+      console.error("Failed to load campaigns from Firestore:", error);
+      setCampaignInfo([]);
+    }
+  };
 
   useEffect(() => {
     const handleWallet = async () => {
       setWalletReady(false);
 
-      // Initialize blockchain provider and txBuilder only once or if changed
-      // Ensure these are correctly typed or use `as any` if you face issues
       const bp = new MaestroProvider({
-        network: 'Preview', // Use 'Preview' or 'Mainnet' as needed
-        apiKey: "xpK89bBiB0liZm1ktJFqOkp3fXCM88DS", // Replace with your actual Maestro API Key
+        network: 'Preview',
+        apiKey: "xpK89bBiB0liZm1ktJFqOkp3fXCM88DS",
       });
       const tb = new MeshTxBuilder({
         fetcher: bp,
         submitter: bp,
         evaluator: bp,
-        verbose: false, // Colleague's version had verbose: false
+        verbose: false,
       });
-      tb.setNetwork('preview'); // Set network for txBuilder
+      tb.setNetwork('preview');
 
       setTxBuilder(tb);
       setBlockchainProvider(bp);
@@ -64,30 +76,22 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
         try {
           const walletAddress = await wallet.getChangeAddress();
           const { pubKeyHash: walletVK, stakeCredentialHash: walletSK } = deserializeAddress(walletAddress);
-          console.log("Wallet Connected. VK:", walletVK); // Log VK for debugging
 
           const fetchedWalletUtxos = await wallet.getUtxos();
           const fetchedWalletCollateral: UTxO[] = await wallet.getCollateral();
-          
-          if (!fetchedWalletCollateral || fetchedWalletCollateral.length === 0) {
-            // Handle case where no collateral is found, e.g., prompt user to create
-            console.warn('No collateral UTxO found. Some transactions might fail.');
-            // Optionally, throw an error or set a state to inform the user
-          }
-
-          const storedCampaigns: campaignInfoType[] = JSON.parse(localStorage.getItem("campaigns") || "[]");
 
           setAddress(walletAddress);
           setWalletVK(walletVK);
           setWalletSK(walletSK);
           setWalletUtxos(fetchedWalletUtxos);
-          setWalletCollateral(fetchedWalletCollateral[0] || null); // Assuming first collateral UTxO is sufficient
-          setCampaignInfo(storedCampaigns); // Load campaign info from localStorage
+          setWalletCollateral(fetchedWalletCollateral[0] || null);
+
+          await loadCampaignsFromFirestore();
+
           setWalletReady(true);
-        } catch(err) {
+        } catch (err) {
           console.error("Error setting up wallet state:", err);
           setWalletReady(false);
-          // Clear wallet state on error
           setAddress("");
           setWalletVK("");
           setWalletSK("");
@@ -96,7 +100,6 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
           setCampaignInfo([]);
         }
       } else {
-        // Clear wallet state when disconnected
         setAddress("");
         setWalletVK("");
         setWalletSK("");
@@ -105,29 +108,41 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
         setWalletReady(false);
         setCampaignInfo([]);
       }
-    }
+    };
 
     handleWallet();
+  }, [connected, wallet, refreshWallet]);
 
-  }, [connected, wallet, refreshWallet]); // Dependencies for useEffect
-
-  // Method to trigger a refresh of wallet state
+  // Refresh wallet state trigger
   const refreshWalletState = () => {
     setRefreshWallet(prev => !prev);
-  }
+  };
 
-  // Method to add a new campaign info to the list and localStorage
-  const updateCampaignInfo = (newCampaign: campaignInfoType) => {
-    const updatedCampaigns = [...campaignInfo, newCampaign];
-    setCampaignInfo(updatedCampaigns);
-    localStorage.setItem("campaigns", JSON.stringify(updatedCampaigns));
-  }
-  
-  // Method to replace the entire campaign info list and update localStorage
-  const replaceCampaignInfo = (newCampaignList: campaignInfoType[]) => {
-    setCampaignInfo(newCampaignList);
-    localStorage.setItem("campaigns", JSON.stringify(newCampaignList));
-  }
+  // Add a new campaign to Firestore, sanitizing data first
+  const updateCampaignInfo = async (newCampaign: campaignInfoType) => {
+    try {
+      const sanitizedCampaign = sanitizeForFirestore(newCampaign);
+      await addDoc(collection(db, "campaigns"), sanitizedCampaign);
+      await loadCampaignsFromFirestore();
+    } catch (error) {
+      console.error("Failed to add campaign:", error);
+    }
+  };
+
+  // Replace entire campaign list in Firestore (update existing docs)
+  const replaceCampaignInfo = async (newCampaignList: campaignInfoType[]) => {
+    try {
+      for (const c of newCampaignList) {
+        if (c.id) {
+          const sanitizedCampaign = sanitizeForFirestore(c);
+          await setDoc(doc(db, "campaigns", c.id), sanitizedCampaign);
+        }
+      }
+      await loadCampaignsFromFirestore();
+    } catch (error) {
+      console.error("Failed to replace campaigns:", error);
+    }
+  };
 
   return (
     <WalletContext.Provider
@@ -143,7 +158,7 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
         walletUtxos,
         walletCollateral,
         refreshWalletState,
-        campaignInfoList: campaignInfo, // Expose the campaign info list
+        campaignInfoList: campaignInfo,
         updateCampaignInfo,
         replaceCampaignInfo,
       }}
@@ -153,11 +168,21 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
   );
 }
 
-// Custom hook to consume wallet context easily
+// Custom hook
 export function useWallet() {
   const context = useContext(WalletContext);
   if (!context) {
     throw new Error('useWallet must be used within WalletConnectionProvider');
   }
   return context;
+}
+
+// campaign type definition
+export interface campaignInfoType {
+  id?: string; // Optional Firestore document ID
+  // Add all other fields that a campaign should have, for example:
+  // name: string;
+  // description: string;
+  // goal: number;
+  // etc.
 }

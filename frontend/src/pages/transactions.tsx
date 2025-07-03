@@ -12,8 +12,11 @@ import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
 import { CreatorDatum } from "@/types/datums";
 import axios from "axios";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 type CampaignInfoType = {
+  id?: string;
   walletVK: string;
   walletSK: string;
   campaignIdHex: string;
@@ -21,6 +24,7 @@ type CampaignInfoType = {
 };
 
 type CampaignDataType = {
+  id?: string;
   campaignTitle: string;
   creatorAddress: string;
   walletVK: string;
@@ -56,18 +60,17 @@ export default function Transactions() {
       setErrorCampaigns(null);
 
       try {
-        const stored = localStorage.getItem("campaigns");
-        if (!stored) {
-          setCampaigns([]);
-          setLoadingCampaigns(false);
-          return;
-        }
+        // Fetch campaigns from Firestore
+        const snapshot = await getDocs(collection(db, "campaigns"));
+        const stored: CampaignInfoType[] = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as CampaignInfoType[];
 
-        const parsed: CampaignInfoType[] = JSON.parse(stored);
         const campaignDataList: CampaignDataType[] = [];
 
-        for (const c of parsed) {
-          const { walletVK, walletSK, campaignIdHex, creatorUtxoRef } = c;
+        for (const c of stored) {
+          const { walletVK, walletSK, campaignIdHex, creatorUtxoRef, id } = c;
 
           const { ratifyAddress } = await getValidator(
             walletVK,
@@ -96,6 +99,7 @@ export default function Transactions() {
 
           if (address.toLowerCase() === creatorAddress.toLowerCase()) {
             campaignDataList.push({
+              id,
               campaignTitle: hexToString(creatorDatum.fields[0].bytes),
               creatorAddress,
               walletVK,
@@ -156,7 +160,6 @@ export default function Transactions() {
           const inputs = utxoResp.data.inputs;
           const outputs = utxoResp.data.outputs;
 
-          // Helper to sum lovelace amounts for a given address
           const sumLovelaceForAddress = (utxos: any[], address: string) => {
             return utxos.reduce((sum, utxo) => {
               if (utxo.address === address) {
@@ -172,13 +175,13 @@ export default function Transactions() {
           const inputSum = sumLovelaceForAddress(inputs, ratifyAddress);
           const outputSum = sumLovelaceForAddress(outputs, ratifyAddress);
 
-          const netLovelace = outputSum - inputSum; // positive = received, negative = spent
+          const netLovelace = outputSum - inputSum;
 
           return {
             txHash,
             blockHeight: tx.block_height,
             blockTime: tx.block_time,
-            amountAda: netLovelace / 1_000_000, // convert lovelace to ADA
+            amountAda: netLovelace / 1_000_000,
             direction: netLovelace > 0 ? "Receiving" : netLovelace < 0 ? "Spending" : "Neutral",
           };
         })

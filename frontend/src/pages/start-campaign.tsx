@@ -2,22 +2,20 @@ import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { CardanoWallet } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
+import { sanitizeForFirestore } from '@/lib/firestoreSanitizer';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  deserializeDatum,
-  hexToString,
   mConStr0,
   mConStr1,
   mPubKeyAddress,
-  serializeAddressObj,
   stringToHex,
   UTxO,
 } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
-import { campaignInfoType } from "@/types/campaign";
+import { db } from "@/lib/firebase";
+import { addDoc, collection } from "firebase/firestore";
 
-// Toast component styled for dark mode
 const Toast = ({
   message,
   type,
@@ -36,13 +34,19 @@ const Toast = ({
   </div>
 );
 
+export type campaignInfoType = {
+  walletVK: string;
+  walletSK: string;
+  campaignIdHex: string;
+  creatorUtxoRef: any;
+  currentGoal: number;
+  isActive: boolean;
+};
+
 export default function StartCampaign() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const {
     walletReady,
@@ -55,7 +59,7 @@ export default function StartCampaign() {
     walletUtxos,
     walletCollateral,
     refreshWalletState,
-    updateCampaignInfo,
+    updateCampaignInfo, // will replace with Firestore addDoc
   } = useWallet();
 
   const [formData, setFormData] = useState({
@@ -144,13 +148,19 @@ export default function StartCampaign() {
     txBuilder.reset();
     refreshWalletState();
 
+    // Save campaign info to Firestore
     const newCampaignInfo: campaignInfoType = {
       walletVK,
       walletSK,
       campaignIdHex,
       creatorUtxoRef,
+      isActive: true,
+      currentGoal: 0,
     };
-    updateCampaignInfo(newCampaignInfo);
+    const sanitizedCampaign = sanitizeForFirestore(newCampaignInfo);
+
+    // Save sanitized data to Firestore
+    await addDoc(collection(db, "campaigns"), sanitizedCampaign);
 
     return txHash;
   };
@@ -177,7 +187,6 @@ export default function StartCampaign() {
       });
       setTimeout(() => router.push("/"), 3000);
     } catch (err: any) {
-      console.error(err);
       setToast({
         message: `Failed to create campaign: ${err.message || err}`,
         type: "error",

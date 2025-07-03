@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { Plus, TrendingUp, Users, Target, ExternalLink } from 'lucide-react';
+import { collection, getDocs } from "firebase/firestore";
+import { db } from '@/lib/firebase';
 
 const DUMMY_CAMPAIGNS_DATA = [
   {
@@ -37,76 +39,27 @@ const Home = () => {
   const [totalCampaignCount, setTotalCampaignCount] = useState(0);
   const [totalRaised, setTotalRaised] = useState(0);
 
-  // Load campaigns from localStorage and combine with dummy campaigns
-  const loadCampaigns = () => {
-    const campaignsRaw = localStorage.getItem("campaigns");
-    let storedCampaigns: any[] = [];
-
-    if (campaignsRaw) {
-      try {
-        storedCampaigns = JSON.parse(campaignsRaw);
-      } catch (err) {
-        console.error("Failed to parse campaigns from localStorage", err);
-      }
-    }
-
-    // Combine dummy campaigns and stored campaigns
-    const combinedCampaigns = [...storedCampaigns];
-
-    DUMMY_CAMPAIGNS_DATA.forEach(dummy => {
-      if (!combinedCampaigns.find(c => c.campaignIdHex === dummy.campaignIdHex)) {
-        combinedCampaigns.push(dummy);
-      }
-    });
-
-    setCampaigns(combinedCampaigns);
-  };
-
-  // Recalculate stats whenever campaigns state changes
   useEffect(() => {
-    const dummyCount = DUMMY_CAMPAIGNS_DATA.length;
+    const loadStats = async () => {
+      const snapshot = await getDocs(collection(db, "campaigns"));
+      const campaigns = snapshot.docs.map(doc => doc.data());
 
-    const activeCreatedCampaigns = campaigns.filter(
-      c => c.isActive !== false && !c.walletVK.startsWith("dummyVK")
-    );
-    const activeDummyCampaigns = campaigns.filter(
-      c => c.isActive !== false && c.walletVK.startsWith("dummyVK")
-    );
+      const dummyCount = DUMMY_CAMPAIGNS_DATA.length;
+      const activeCreatedCampaigns = campaigns.filter(c => c.isActive !== false);
+      const activeCampaigns = dummyCount + activeCreatedCampaigns.length;
+      const totalCampaigns = campaigns.length + dummyCount;
 
-    const totalCampaigns = campaigns.length;
-    const activeCampaigns = activeCreatedCampaigns.length + activeDummyCampaigns.length;
+      const totalRaisedDummy = DUMMY_CAMPAIGNS_DATA.reduce((sum, c) => sum + (c.currentGoal || 0), 0);
+      const totalRaisedCreated = activeCreatedCampaigns.reduce((sum, c) => sum + (c.currentGoal || 0), 0);
+      const totalRaisedAmount = totalRaisedDummy + totalRaisedCreated;
 
-    const totalRaisedDummy = activeDummyCampaigns.reduce(
-      (sum, c) => sum + (typeof c.currentGoal === "number" ? c.currentGoal : 0),
-      0
-    );
-
-    const totalRaisedCreated = activeCreatedCampaigns.reduce(
-      (sum, c) => sum + (typeof c.currentGoal === "number" ? c.currentGoal : 0),
-      0
-    );
-
-    const totalRaisedAmount = totalRaisedDummy + totalRaisedCreated;
-
-    setTotalCampaignCount(totalCampaigns);
-    setActiveCampaignCount(activeCampaigns);
-    setTotalRaised(totalRaisedAmount);
-  }, [campaigns]);
-
-  // Load campaigns on mount and listen for localStorage changes
-  useEffect(() => {
-    loadCampaigns();
-
-    const onStorageChange = (e: StorageEvent) => {
-      if (e.key === "campaigns") {
-        loadCampaigns();
-      }
+      setActiveCampaignCount(activeCampaigns);
+      setTotalCampaignCount(totalCampaigns);
+      setTotalRaised(totalRaisedAmount);
+      setCampaigns([...campaigns, ...DUMMY_CAMPAIGNS_DATA]);
     };
-    window.addEventListener("storage", onStorageChange);
 
-    return () => {
-      window.removeEventListener("storage", onStorageChange);
-    };
+    loadStats();
   }, []);
 
   const stats = {
