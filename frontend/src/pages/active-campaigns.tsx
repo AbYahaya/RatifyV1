@@ -35,6 +35,7 @@ type campaignDataType = {
   campaignTitle: string;
   creatorAddress: string;
   currentGoal: number;
+  currentGoalDatum: number;
   campaignGoal: number;
   walletVK: string;
   walletSK: string;
@@ -73,6 +74,7 @@ const DUMMY_CAMPAIGN_DATA: campaignDataType[] = [
     campaignTitle: "Mock Campaign 1",
     creatorAddress: "addr_test1qzmockaddress1",
     currentGoal: 18000,
+    currentGoalDatum: 18000,
     campaignGoal: 20000,
     walletVK: "dummyVK1",
     walletSK: "dummySK1",
@@ -84,6 +86,7 @@ const DUMMY_CAMPAIGN_DATA: campaignDataType[] = [
     campaignTitle: "Mock Campaign 2",
     creatorAddress: "addr_test1qzmockaddress2",
     currentGoal: 25000,
+    currentGoalDatum: 25000,
     campaignGoal: 25000,
     walletVK: "dummyVK2",
     walletSK: "dummySK2",
@@ -714,9 +717,11 @@ const ActiveCampaigns = () => {
                       <Button
                         variant="outline"
                         onClick={() => handleUpdateCampaign(campaign)}
-                        disabled={campaign.currentGoal < campaign.campaignGoal}
+                        disabled={(campaign.currentGoal < campaign.campaignGoal)
+                          || (campaign.currentGoal == campaign.currentGoalDatum)
+                        }
                       >
-                        Update Campaign Funds
+                        Sign Withdrawal
                       </Button>
 
                       <Button
