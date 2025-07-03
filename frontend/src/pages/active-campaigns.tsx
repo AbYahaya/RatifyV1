@@ -187,6 +187,7 @@ const ActiveCampaigns = () => {
         }
 
         const currentGoal = updatedCurrentFunds;
+        const currentGoalDatum = Number(creatorDatum.fields[2].int);
         const campaignGoal = Number(creatorDatum.fields[3].fields[0].int);
 
         if (id) {
@@ -199,6 +200,7 @@ const ActiveCampaigns = () => {
           campaignTitle: hexToString(creatorDatum.fields[0].bytes),
           creatorAddress: serializeAddressObj(creatorDatum.fields[1]),
           currentGoal,
+          currentGoalDatum,
           campaignGoal,
           walletVK: cwalletVK,
           walletSK: cWalletSK,
@@ -720,7 +722,7 @@ const ActiveCampaigns = () => {
                       <Button
                         variant="outline"
                         onClick={() => handleWithdrawFunds(campaign)}
-                        disabled={campaign.currentGoal < campaign.campaignGoal}
+                        disabled={campaign.currentGoalDatum < campaign.campaignGoal}
                       >
                         Withdraw
                       </Button>
