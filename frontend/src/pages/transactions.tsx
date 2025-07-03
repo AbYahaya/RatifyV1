@@ -34,7 +34,19 @@ type CampaignDataType = {
 };
 
 const BLOCKFROST_API_KEY = process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY;
-const BLOCKFROST_API_URL = process.env.NEXT_PUBLIC_BLOCKFROST_API_URL;
+const BLOCKFROST_NETWORK = process.env.NEXT_PUBLIC_BLOCKFROST_NETWORK || "preview";
+
+const getBlockfrostApiUrl = () => {
+  switch (BLOCKFROST_NETWORK) {
+    case "mainnet":
+      return "https://cardano-mainnet.blockfrost.io/api/v0";
+    case "preprod":
+      return "https://cardano-preprod.blockfrost.io/api/v0";
+    case "preview":
+    default:
+      return "https://cardano-preview.blockfrost.io/api/v0";
+  }
+};
 
 export default function Transactions() {
   const router = useRouter();
@@ -60,7 +72,6 @@ export default function Transactions() {
       setErrorCampaigns(null);
 
       try {
-        // Fetch campaigns from Firestore
         const snapshot = await getDocs(collection(db, "campaigns"));
         const stored: CampaignInfoType[] = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -136,9 +147,10 @@ export default function Transactions() {
         campaign.creatorUtxoRef
       );
 
-      // Fetch latest 10 transactions for the campaign address
+      const apiUrl = getBlockfrostApiUrl();
+
       const resp = await axios.get(
-        `${BLOCKFROST_API_URL}/addresses/${ratifyAddress}/transactions?order=desc&count=10`,
+        `${apiUrl}/addresses/${ratifyAddress}/transactions?order=desc&count=10`,
         {
           headers: { project_id: BLOCKFROST_API_KEY },
         }
@@ -148,15 +160,13 @@ export default function Transactions() {
         resp.data.map(async (tx: any) => {
           const txHash = tx.tx_hash;
 
-          // Fetch detailed UTxO info for this transaction
           const utxoResp = await axios.get(
-            `${BLOCKFROST_API_URL}/txs/${txHash}/utxos`,
+            `${apiUrl}/txs/${txHash}/utxos`,
             {
               headers: { project_id: BLOCKFROST_API_KEY },
             }
           );
 
-          // Calculate ADA amount sent to and from campaign address
           const inputs = utxoResp.data.inputs;
           const outputs = utxoResp.data.outputs;
 

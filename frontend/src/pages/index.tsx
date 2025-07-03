@@ -6,31 +6,6 @@ import { Plus, TrendingUp, Users, Target, ExternalLink } from 'lucide-react';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
 
-const DUMMY_CAMPAIGNS_DATA = [
-  {
-    campaignTitle: "Mock Campaign 1",
-    creatorAddress: "addr_test1qzmockaddress1",
-    currentGoal: 18000,
-    campaignGoal: 20000,
-    walletVK: "dummyVK1",
-    walletSK: "dummySK1",
-    campaignIdHex: "64656d6f43616d706169676e31",
-    creatorUtxoRef: {},
-    isActive: true,
-  },
-  {
-    campaignTitle: "Mock Campaign 2",
-    creatorAddress: "addr_test1qzmockaddress2",
-    currentGoal: 25000,
-    campaignGoal: 25000,
-    walletVK: "dummyVK2",
-    walletSK: "dummySK2",
-    campaignIdHex: "64656d6f43616d706169676e32",
-    creatorUtxoRef: {},
-    isActive: true,
-  },
-];
-
 const Home = () => {
   const router = useRouter();
 
@@ -44,19 +19,18 @@ const Home = () => {
       const snapshot = await getDocs(collection(db, "campaigns"));
       const campaigns = snapshot.docs.map(doc => doc.data());
 
-      const dummyCount = DUMMY_CAMPAIGNS_DATA.length;
+      // Active campaigns: those not ended/cancelled
       const activeCreatedCampaigns = campaigns.filter(c => c.isActive !== false);
-      const activeCampaigns = dummyCount + activeCreatedCampaigns.length;
-      const totalCampaigns = campaigns.length + dummyCount;
+      const activeCampaigns = activeCreatedCampaigns.length;
+      const totalCampaigns = campaigns.length;
 
-      const totalRaisedDummy = DUMMY_CAMPAIGNS_DATA.reduce((sum, c) => sum + (c.currentGoal || 0), 0);
-      const totalRaisedCreated = activeCreatedCampaigns.reduce((sum, c) => sum + (c.currentGoal || 0), 0);
-      const totalRaisedAmount = totalRaisedDummy + totalRaisedCreated;
+      // Total raised: cumulative sum of currentGoal of all campaigns (including ended/cancelled)
+      const totalRaisedAmount = campaigns.reduce((sum, c) => sum + (c.currentGoal || 0), 0);
 
       setActiveCampaignCount(activeCampaigns);
       setTotalCampaignCount(totalCampaigns);
       setTotalRaised(totalRaisedAmount);
-      setCampaigns([...campaigns, ...DUMMY_CAMPAIGNS_DATA]);
+      setCampaigns(campaigns);
     };
 
     loadStats();

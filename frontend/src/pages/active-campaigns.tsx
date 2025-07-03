@@ -44,58 +44,6 @@ type campaignDataType = {
   isActive?: boolean;
 };
 
-const DUMMY_CAMPAIGNS: campaignInfoType[] = [
-  {
-    walletVK: "dummyVK1",
-    walletSK: "dummySK1",
-    campaignIdHex: "64656d6f43616d706169676e31",
-    creatorUtxoRef: {
-      input: { txHash: "dummyTxHash1", outputIndex: 0 },
-      output: { amount: [], address: "" },
-    } as UTxO,
-    isActive: true,
-    currentGoal: 18000,
-  },
-  {
-    walletVK: "dummyVK2",
-    walletSK: "dummySK2",
-    campaignIdHex: "64656d6f43616d706169676e32",
-    creatorUtxoRef: {
-      input: { txHash: "dummyTxHash2", outputIndex: 0 },
-      output: { amount: [], address: "" },
-    } as UTxO,
-    isActive: true,
-    currentGoal: 25000,
-  },
-];
-
-const DUMMY_CAMPAIGN_DATA: campaignDataType[] = [
-  {
-    campaignTitle: "Mock Campaign 1",
-    creatorAddress: "addr_test1qzmockaddress1",
-    currentGoal: 18000,
-    currentGoalDatum: 18000,
-    campaignGoal: 20000,
-    walletVK: "dummyVK1",
-    walletSK: "dummySK1",
-    campaignIdHex: "64656d6f43616d706169676e31",
-    creatorUtxoRef: DUMMY_CAMPAIGNS[0].creatorUtxoRef,
-    isActive: true,
-  },
-  {
-    campaignTitle: "Mock Campaign 2",
-    creatorAddress: "addr_test1qzmockaddress2",
-    currentGoal: 25000,
-    currentGoalDatum: 25000,
-    campaignGoal: 25000,
-    walletVK: "dummyVK2",
-    walletSK: "dummySK2",
-    campaignIdHex: "64656d6f43616d706169676e32",
-    creatorUtxoRef: DUMMY_CAMPAIGNS[1].creatorUtxoRef,
-    isActive: true,
-  },
-];
-
 const ActiveCampaigns = () => {
   const router = useRouter();
   const {
@@ -214,8 +162,6 @@ const ActiveCampaigns = () => {
         });
       }
 
-      campaignDataList.push(...DUMMY_CAMPAIGN_DATA);
-
       setCampaignInfo(storedCampaigns);
       setCampaignData(campaignDataList);
     } catch (err: any) {
@@ -225,8 +171,7 @@ const ActiveCampaigns = () => {
     }
   };
 
-  const isDummyCampaign = (campaign: campaignDataType) =>
-    campaign.walletVK.startsWith("dummyVK");
+  const isDummyCampaign = (campaign?: campaignDataType) => false;
 
   const markCampaignInactive = async (campaignId: string) => {
     try {
@@ -240,10 +185,6 @@ const ActiveCampaigns = () => {
   };
 
   const handleSupportCampaign = async (campaign: campaignDataType) => {
-    if (isDummyCampaign(campaign)) {
-      alert("This is a mock campaign. Please create a real campaign to interact.");
-      return;
-    }
     if (!blockchainProvider || !txBuilder || !walletCollateral) {
       alert("Wallet parameters not initialized for support!");
       return;
@@ -303,10 +244,6 @@ const ActiveCampaigns = () => {
   };
 
   const handleCancelCampaign = async (campaign: campaignDataType) => {
-    if (isDummyCampaign(campaign)) {
-      alert("This is a mock campaign. No real cancellation possible.");
-      return;
-    }
     if (!blockchainProvider || !txBuilder || !walletCollateral) {
       alert("Wallet parameters not initialized for cancel!");
       return;
@@ -550,8 +487,17 @@ const ActiveCampaigns = () => {
         campaign.creatorUtxoRef
       );
 
+      // Fix: Use dynamic Blockfrost API URL based on environment variable
+      const network = process.env.NEXT_PUBLIC_BLOCKFROST_NETWORK || "preview";
+      const apiUrl =
+        network === "mainnet"
+          ? "https://cardano-mainnet.blockfrost.io/api/v0"
+          : network === "preprod"
+          ? "https://cardano-preprod.blockfrost.io/api/v0"
+          : "https://cardano-preview.blockfrost.io/api/v0";
+
       const resp = await fetch(
-        `https://cardano-mainnet.blockfrost.io/api/v0/addresses/${ratifyAddress}/transactions?order=desc&count=10`,
+        `${apiUrl}/addresses/${ratifyAddress}/transactions?order=desc&count=10`,
         {
           headers: {
             project_id: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY || "",
