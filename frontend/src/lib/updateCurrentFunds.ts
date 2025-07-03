@@ -10,7 +10,6 @@ import {
 } from "@meshsdk/core";
 import { BackerDatum, CreatorDatum } from "@/types/datums.js";
 import { BlockchainProviderType } from "@/types/general.js";
-import { adminVK } from "./contract";
 
 export const updateCurrentFunds = async (
   blockchainProvider: BlockchainProviderType,
@@ -83,7 +82,7 @@ export const updateCurrentFunds = async (
         walletCollateral.output.amount,
         walletCollateral.output.address
       )
-      .requiredSignerHash(adminVK)
+      .requiredSignerHash(walletVK)
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);

@@ -11,6 +11,7 @@ import {
   mConStr0,
   mConStr1,
   mPubKeyAddress,
+  stringToHex,
 } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
@@ -39,21 +40,21 @@ type campaignDataType = {
 
 const DUMMY_CAMPAIGNS: campaignInfoType[] = [
   {
-    walletVK: "dummyVK1",
-    walletSK: "dummySK1",
+    walletVK: "64756d6d79564b3164756d6d79564b3164756d6d79564b3164756d6d",
+    walletSK: "79564b3164756d6d64756d6d79564b3164756d6d79564b3164756d6d",
     campaignIdHex: "64656d6f43616d706169676e31",
     creatorUtxoRef: {
-      input: { txHash: "dummyTxHash1", outputIndex: 0 },
+      input: { txHash: "d79564b3164756d664756d6d79564b3164756d6d79564b3164756d6d64756d6d", outputIndex: 0 },
       output: { amount: [], address: "" },
     } as UTxO,
     isActive: true,
   },
   {
-    walletVK: "dummyVK2",
-    walletSK: "dummySK2",
+    walletVK: "79564b3164756d6d64756d6d79564b3164756d6d79564b3164756d6d",
+    walletSK: "64756d6d79564b3164756d6d79564b3164756d6d79564b3164756d6d",
     campaignIdHex: "64656d6f43616d706169676e32",
     creatorUtxoRef: {
-      input: { txHash: "dummyTxHash2", outputIndex: 0 },
+      input: { txHash: "664756d6d7956d79564b3164756d4b3164756d6d79564b3164756d6d64756d6d", outputIndex: 0 },
       output: { amount: [], address: "" },
     } as UTxO,
     isActive: true,
@@ -66,8 +67,8 @@ const DUMMY_CAMPAIGN_DATA: campaignDataType[] = [
     creatorAddress: "addr_test1qzmockaddress1",
     currentGoal: 18000,
     campaignGoal: 20000,
-    walletVK: "dummyVK1",
-    walletSK: "dummySK1",
+    walletVK: stringToHex("dummyVK1"),
+    walletSK: stringToHex("dummySK1"),
     campaignIdHex: "64656d6f43616d706169676e31",
     creatorUtxoRef: DUMMY_CAMPAIGNS[0].creatorUtxoRef,
     isActive: true,
@@ -77,8 +78,8 @@ const DUMMY_CAMPAIGN_DATA: campaignDataType[] = [
     creatorAddress: "addr_test1qzmockaddress2",
     currentGoal: 25000,
     campaignGoal: 25000,
-    walletVK: "dummyVK2",
-    walletSK: "dummySK2",
+    walletVK: stringToHex("dummyVK2"),
+    walletSK: stringToHex("dummySK2"),
     campaignIdHex: "64656d6f43616d706169676e32",
     creatorUtxoRef: DUMMY_CAMPAIGNS[1].creatorUtxoRef,
     isActive: true,
@@ -111,6 +112,8 @@ const ActiveCampaigns = () => {
   const [transactionHistory, setTransactionHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const [adaSupportAmount, setAdaSupportAmount] = useState<string>("");
 
   useEffect(() => {
     const campaigns = localStorage.getItem("campaigns");
@@ -172,7 +175,22 @@ const ActiveCampaigns = () => {
 
         const creatorDatum = deserializeDatum<CreatorDatum>(creatorUtxo.output.plutusData);
 
-        const currentGoal = Number(creatorDatum.fields[2].int);
+        const restCampaignUtxos = allCampaignUtxos.filter((utxo: UTxO) => {
+          const plutusData = utxo.output.plutusData;
+          if (!plutusData) return false;
+          const datum = deserializeDatum<BackerDatum>(plutusData);
+          if (!datum.fields[2]) return false;
+          return utxo !== creatorUtxo;
+        });
+
+        let updatedCurrentFunds = 0;
+        for (const utxo of restCampaignUtxos) {
+          updatedCurrentFunds += Number(utxo.output.amount[0].quantity) / 1000000;
+        }
+
+        const currentGoal = updatedCurrentFunds;
+
+        // const currentGoal = Number(creatorDatum.fields[2].int);
         const campaignGoal = Number(creatorDatum.fields[3].fields[0].int);
 
         campaignDataList.push({
@@ -232,6 +250,11 @@ const ActiveCampaigns = () => {
       return;
     }
 
+    if (!adaSupportAmount) {
+      alert("Please provide amount of support!");
+      return;
+    }
+
     try {
       const { ratifyAddress, ratifyValidatorScript, ratifyPolicy, backerNftName } = await getValidator(
         campaign.walletVK,
@@ -252,7 +275,7 @@ const ActiveCampaigns = () => {
         .mint("1", ratifyPolicy, backerNftName)
         .mintingScript(ratifyValidatorScript)
         .mintRedeemerValue(mConStr1([]))
-        .txOut(ratifyAddress, [{ unit: "lovelace", quantity: "30000000" }])
+        .txOut(ratifyAddress, [{ unit: "lovelace", quantity: String(Number(adaSupportAmount) * 1000000) }])
         .txOutInlineDatumValue(backerDatum)
         .txOut(address, [{ unit: ratifyPolicy + backerNftName, quantity: "1" }])
         .changeAddress(address)
@@ -270,6 +293,7 @@ const ActiveCampaigns = () => {
       await wallet.submitTx(signedTx);
 
       alert("Support transaction submitted successfully!");
+      setAdaSupportAmount("");
       txBuilder.reset();
       refreshWalletState();
       await loadCampaigns();
@@ -489,10 +513,8 @@ const ActiveCampaigns = () => {
 
       alert("Withdraw transaction submitted successfully!");
 
-      const restCampaigns = campaignInfoList.filter(
-        (cInfo) => cInfo.creatorUtxoRef !== campaign.creatorUtxoRef
-      );
-      replaceCampaignInfo(restCampaigns);
+      // Mark campaign inactive locally
+      markCampaignInactive(campaign.campaignIdHex);
 
       txBuilder.reset();
       refreshWalletState();
@@ -659,9 +681,17 @@ const ActiveCampaigns = () => {
 
               <CardFooter className="py-6 border-t border-gray-700 flex flex-col gap-4">
                 <div className="flex flex-wrap gap-3 w-full">
+                  <input
+                    className="text-black text-center"
+                    type="text"
+                    value={adaSupportAmount}
+                    onChange={(e) => setAdaSupportAmount(e.target.value)}
+                    disabled={campaign.currentGoal >= campaign.campaignGoal}
+                  />
                   <Button
                     variant="outline"
                     onClick={() => handleSupportCampaign(campaign)}
+                    disabled={campaign.currentGoal >= campaign.campaignGoal}
                   >
                     Support Campaign
                   </Button>
@@ -678,6 +708,7 @@ const ActiveCampaigns = () => {
                       <Button
                         variant="outline"
                         onClick={() => handleUpdateCampaign(campaign)}
+                        disabled={campaign.currentGoal < campaign.campaignGoal}
                       >
                         Update Campaign Funds
                       </Button>

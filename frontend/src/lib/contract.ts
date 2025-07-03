@@ -11,8 +11,6 @@ import {
 } from "@meshsdk/core";
 import blueprint from "../../../smart_contracts/plutus.json" with { type: "json" };
 
-const adminVK = "4248e9343c5ffafcb0e6b15b77c9150ac34987222b7482f821ada341";
-
 const getValidator = async (
   walletVK: string,
   walletSK: string,
@@ -30,7 +28,7 @@ const getValidator = async (
   const ratifyValidatorScript = applyParamsToScript(
     ratifyValidator[0].compiledCode,
     [
-      builtinByteString(adminVK),
+      builtinByteString(walletVK),
       pubKeyAddress(walletVK, walletSK),
       builtinByteString(campaignIdHex),
       outputReference(creatorUtxoRef.input.txHash, creatorUtxoRef.input.outputIndex),
@@ -54,4 +52,4 @@ const getValidator = async (
   };
 };
 
-export { adminVK, getValidator };
+export { getValidator };
