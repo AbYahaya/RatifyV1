@@ -34,15 +34,6 @@ const Toast = ({
   </div>
 );
 
-export type campaignInfoType = {
-  walletVK: string;
-  walletSK: string;
-  campaignIdHex: string;
-  creatorUtxoRef: any;
-  currentGoal: number;
-  isActive: boolean;
-};
-
 export default function StartCampaign() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,7 +50,6 @@ export default function StartCampaign() {
     walletUtxos,
     walletCollateral,
     refreshWalletState,
-    updateCampaignInfo, // will replace with Firestore addDoc
   } = useWallet();
 
   const [formData, setFormData] = useState({
@@ -148,18 +138,24 @@ export default function StartCampaign() {
     txBuilder.reset();
     refreshWalletState();
 
-    // Save campaign info to Firestore
-    const newCampaignInfo: campaignInfoType = {
+    // Save campaign info to Firestore with additional fields
+    const newCampaignInfo = {
       walletVK,
       walletSK,
       campaignIdHex,
       creatorUtxoRef,
       isActive: true,
       currentGoal: 0,
+      campaignTitle: formData.title,
+      creatorAddress: address,
+      campaignGoal: Number(formData.targetAmount),
+      description: formData.description,
+      category: formData.category,
+      imageUrl: formData.imageUrl,
     };
+
     const sanitizedCampaign = sanitizeForFirestore(newCampaignInfo);
 
-    // Save sanitized data to Firestore
     await addDoc(collection(db, "campaigns"), sanitizedCampaign);
 
     return txHash;

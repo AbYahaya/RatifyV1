@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { CardanoWallet } from "@meshsdk/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -171,18 +172,7 @@ const ActiveCampaigns = () => {
     }
   };
 
-  const isDummyCampaign = (campaign?: campaignDataType) => false;
-
-  const markCampaignInactive = async (campaignId: string) => {
-    try {
-      const campaignRef = doc(db, "campaigns", campaignId);
-      const sanitizedUpdate = sanitizeForFirestore({ isActive: false });
-      await updateDoc(campaignRef, sanitizedUpdate);
-      await loadCampaigns();
-    } catch (err) {
-      console.error("Failed to mark campaign inactive:", err);
-    }
-  };
+  // Handler functions
 
   const handleSupportCampaign = async (campaign: campaignDataType) => {
     if (!blockchainProvider || !txBuilder || !walletCollateral) {
@@ -383,94 +373,91 @@ const ActiveCampaigns = () => {
   };
 
   const handleWithdrawFunds = async (campaign: campaignDataType) => {
-    if (!blockchainProvider || !txBuilder || !walletCollateral) {
-      alert("Wallet parameters not initialized for withdraw!");
-      return;
-    }
+  if (!blockchainProvider || !txBuilder || !walletCollateral) {
+    alert("Wallet parameters not initialized for withdraw!");
+    return;
+  }
 
-    try {
-      const { ratifyAddress, ratifyValidatorScript } = await getValidator(
-        campaign.walletVK,
-        campaign.walletSK,
-        campaign.campaignIdHex,
-        blockchainProvider,
-        campaign.creatorUtxoRef
-      );
+  try {
+    const { ratifyAddress, ratifyValidatorScript } = await getValidator(
+      campaign.walletVK,
+      campaign.walletSK,
+      campaign.campaignIdHex,
+      blockchainProvider,
+      campaign.creatorUtxoRef
+    );
 
-      const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
+    const allCampaignUtxos = await blockchainProvider.fetchAddressUTxOs(ratifyAddress);
 
-      const filteredCampaignUtxos = allCampaignUtxos.filter((utxo) => {
-        const plutusData = utxo.output.plutusData;
-        if (!plutusData) return false;
-        if (deserializeDatum<BackerDatum>(plutusData)) {
-          const datum = deserializeDatum<BackerDatum>(plutusData);
-          if (!datum.fields[2]) return false;
-        } else if (deserializeDatum<CreatorDatum>(plutusData)) {
-          const datum = deserializeDatum<CreatorDatum>(plutusData);
-          if (!datum.fields[3]) return false;
-        }
-        return true;
-      });
-
-      let initialTx = txBuilder;
-
-      for (const utxo of filteredCampaignUtxos) {
-        initialTx = initialTx
-          .spendingPlutusScriptV3()
-          .txIn(
-            utxo.input.txHash,
-            utxo.input.outputIndex,
-            utxo.output.amount,
-            utxo.output.address
-          )
-          .txInScript(ratifyValidatorScript)
-          .spendingReferenceTxInInlineDatumPresent()
-          .spendingReferenceTxInRedeemerValue(mConStr1([]));
+    const filteredCampaignUtxos = allCampaignUtxos.filter((utxo) => {
+      const plutusData = utxo.output.plutusData;
+      if (!plutusData) return false;
+      if (deserializeDatum<BackerDatum>(plutusData)) {
+        const datum = deserializeDatum<BackerDatum>(plutusData);
+        if (!datum.fields[2]) return false;
+      } else if (deserializeDatum<CreatorDatum>(plutusData)) {
+        const datum = deserializeDatum<CreatorDatum>(plutusData);
+        if (!datum.fields[3]) return false;
       }
+      return true;
+    });
 
-      for (const utxo of filteredCampaignUtxos) {
-        initialTx = initialTx.txOut(address, utxo.output.amount);
-      }
+    let initialTx = txBuilder;
 
-      const unsignedTx = await initialTx
-        .changeAddress(address)
-        .selectUtxosFrom(walletUtxos)
-        .txInCollateral(
-          walletCollateral.input.txHash,
-          walletCollateral.input.outputIndex,
-          walletCollateral.output.amount,
-          walletCollateral.output.address
+    for (const utxo of filteredCampaignUtxos) {
+      initialTx = initialTx
+        .spendingPlutusScriptV3()
+        .txIn(
+          utxo.input.txHash,
+          utxo.input.outputIndex,
+          utxo.output.amount,
+          utxo.output.address
         )
-        .requiredSignerHash(walletVK)
-        .complete();
-
-      const signedTx = await wallet.signTx(unsignedTx);
-      await wallet.submitTx(signedTx);
-
-      alert("Withdraw transaction submitted successfully!");
-
-      if (campaign.id) {
-        const campaignRef = doc(db, "campaigns", campaign.id);
-        const sanitizedUpdate = sanitizeForFirestore({ isActive: false });
-        await updateDoc(campaignRef, sanitizedUpdate);
-      }
-
-      txBuilder.reset();
-      refreshWalletState();
-      await loadCampaigns();
-    } catch (err) {
-      alert("Withdraw transaction failed: " + (err as Error).message);
-      txBuilder.reset();
-      refreshWalletState();
+        .txInScript(ratifyValidatorScript)
+        .spendingReferenceTxInInlineDatumPresent()
+        .spendingReferenceTxInRedeemerValue(mConStr1([]));
     }
-  };
+
+    for (const utxo of filteredCampaignUtxos) {
+      initialTx = initialTx.txOut(address, utxo.output.amount);
+    }
+
+    const unsignedTx = await initialTx
+      .changeAddress(address)
+      .selectUtxosFrom(walletUtxos)
+      .txInCollateral(
+        walletCollateral.input.txHash,
+        walletCollateral.input.outputIndex,
+        walletCollateral.output.amount,
+        walletCollateral.output.address
+      )
+      .requiredSignerHash(walletVK)
+      .complete();
+
+    const signedTx = await wallet.signTx(unsignedTx);
+    await wallet.submitTx(signedTx);
+
+    alert("Withdraw transaction submitted successfully!");
+
+    if (campaign.id) {
+      const campaignRef = doc(db, "campaigns", campaign.id);
+      // Set isCompleted true and isActive false explicitly
+      const sanitizedUpdate = sanitizeForFirestore({ isActive: false, isCompleted: true });
+      await updateDoc(campaignRef, sanitizedUpdate);
+    }
+
+    txBuilder.reset();
+    refreshWalletState();
+    await loadCampaigns();
+  } catch (err) {
+    alert("Withdraw transaction failed: " + (err as Error).message);
+    txBuilder.reset();
+    refreshWalletState();
+  }
+};
+
 
   const fetchTransactionHistory = async (campaign: campaignDataType) => {
-    if (isDummyCampaign(campaign)) {
-      alert("This is a mock campaign. Please create a real campaign to view transaction history.");
-      return;
-    }
-
     if (!blockchainProvider) return;
 
     setShowHistoryFor(campaign.campaignIdHex);
@@ -487,7 +474,6 @@ const ActiveCampaigns = () => {
         campaign.creatorUtxoRef
       );
 
-      // Fix: Use dynamic Blockfrost API URL based on environment variable
       const network = process.env.NEXT_PUBLIC_BLOCKFROST_NETWORK || "preview";
       const apiUrl =
         network === "mainnet"
@@ -663,8 +649,9 @@ const ActiveCampaigns = () => {
                       <Button
                         variant="outline"
                         onClick={() => handleUpdateCampaign(campaign)}
-                        disabled={(campaign.currentGoal < campaign.campaignGoal)
-                          || (campaign.currentGoal == campaign.currentGoalDatum)
+                        disabled={
+                          campaign.currentGoal < campaign.campaignGoal ||
+                          campaign.currentGoal === campaign.currentGoalDatum
                         }
                       >
                         Sign Withdrawal
@@ -686,6 +673,14 @@ const ActiveCampaigns = () => {
                   >
                     View Transaction History
                   </Button>
+
+                  <Link href={`/campaign/${campaign.id}`} passHref legacyBehavior>
+                    <a>
+                      <Button variant="outline">
+                        View More Details
+                      </Button>
+                    </a>
+                  </Link>
                 </div>
 
                 {showHistoryFor === campaign.campaignIdHex && (
