@@ -7,12 +7,13 @@ import {
   serializeAddressObj,
   hexToString,
   UTxO,
+  deserializeDatum as deserializeDatumCore,
 } from "@meshsdk/core";
 import { useWallet } from "@/components/WalletConnection";
 import { getValidator } from "@/lib/contract";
-import { CreatorDatum } from "@/types/datums";
+import { CreatorDatum, BackerDatum } from "@/types/datums";
 import axios from "axios";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type CampaignInfoType = {
@@ -21,6 +22,10 @@ type CampaignInfoType = {
   walletSK: string;
   campaignIdHex: string;
   creatorUtxoRef: UTxO;
+  isActive?: boolean;
+  isCompleted?: boolean;
+  currentGoal?: number;
+  campaignGoal?: number;
 };
 
 type CampaignDataType = {
@@ -31,6 +36,10 @@ type CampaignDataType = {
   walletSK: string;
   campaignIdHex: string;
   creatorUtxoRef: UTxO;
+  isActive?: boolean;
+  isCompleted?: boolean;
+  currentGoal?: number;
+  campaignGoal?: number;
 };
 
 const BLOCKFROST_API_KEY = process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY;
@@ -46,6 +55,13 @@ const getBlockfrostApiUrl = () => {
     default:
       return "https://cardano-preview.blockfrost.io/api/v0";
   }
+};
+
+const getStatus = (campaign: CampaignDataType): "Active" | "Completed" | "Cancelled" => {
+  if (campaign.isCompleted) return "Completed";
+  if (campaign.isActive === false) return "Cancelled";
+  if ((campaign.currentGoal ?? 0) >= (campaign.campaignGoal ?? Infinity)) return "Completed";
+  return "Active";
 };
 
 export default function Transactions() {
@@ -81,7 +97,7 @@ export default function Transactions() {
         const campaignDataList: CampaignDataType[] = [];
 
         for (const c of stored) {
-          const { walletVK, walletSK, campaignIdHex, creatorUtxoRef, id } = c;
+          const { walletVK, walletSK, campaignIdHex, creatorUtxoRef, id, isActive, isCompleted, currentGoal, campaignGoal } = c;
 
           const { ratifyAddress } = await getValidator(
             walletVK,
@@ -108,7 +124,27 @@ export default function Transactions() {
           const creatorDatum = deserializeDatum<CreatorDatum>(creatorUtxo.output.plutusData);
           const creatorAddress = serializeAddressObj(creatorDatum.fields[1]);
 
-          if (address.toLowerCase() === creatorAddress.toLowerCase()) {
+          // Check if connected wallet is creator
+          let isRelated = address.toLowerCase() === creatorAddress.toLowerCase();
+
+          // If not creator, check if donor (backer)
+          if (!isRelated) {
+            // Check if wallet address owns backer NFTs for this campaign
+            const backerUtxos = allCampaignUtxos.filter((utxo) => {
+              if (!utxo.output.plutusData) return false;
+              try {
+                const datum = deserializeDatum<BackerDatum>(utxo.output.plutusData);
+                // donor address is datum.fields[1]
+                const donorAddress = serializeAddressObj(datum.fields[1]);
+                return donorAddress.toLowerCase() === address.toLowerCase();
+              } catch {
+                return false;
+              }
+            });
+            if (backerUtxos.length > 0) isRelated = true;
+          }
+
+          if (isRelated) {
             campaignDataList.push({
               id,
               campaignTitle: hexToString(creatorDatum.fields[0].bytes),
@@ -117,6 +153,10 @@ export default function Transactions() {
               walletSK,
               campaignIdHex,
               creatorUtxoRef,
+              isActive,
+              isCompleted,
+              currentGoal,
+              campaignGoal,
             });
           }
         }
@@ -150,7 +190,7 @@ export default function Transactions() {
       const apiUrl = getBlockfrostApiUrl();
 
       const resp = await axios.get(
-        `${apiUrl}/addresses/${ratifyAddress}/transactions?order=desc&count=10`,
+        `${apiUrl}/addresses/${ratifyAddress}/transactions?order=desc&count=20`,
         {
           headers: { project_id: BLOCKFROST_API_KEY },
         }
@@ -216,7 +256,7 @@ export default function Transactions() {
       <div className="container mx-auto px-4 max-w-4xl flex-grow py-8">
         {!address ? (
           <>
-            <h1 className="text-3xl font-bold mb-4 text-center">Transaction History</h1>
+            <h1 className="text-3xl font-bold mb-4 text-center">Your Campaigns & Transaction History</h1>
             <div className="mb-6 flex justify-center">
               <CardanoWallet label="Connect Wallet" persist={true} />
             </div>
@@ -237,68 +277,85 @@ export default function Transactions() {
         ) : (
           <>
             <h1 className="text-3xl font-bold mb-6">Your Campaigns & Transaction History</h1>
-            {campaigns.map((campaign) => (
-              <div
-                key={campaign.campaignIdHex}
-                className="mb-10 border border-gray-700 rounded p-6 shadow-lg bg-gray-800"
-              >
-                <h2 className="text-xl font-semibold mb-4 text-white">{campaign.campaignTitle}</h2>
-                <p className="mb-4 break-all">
-                  Campaign ID: <code className="font-mono bg-gray-900 px-2 py-1 rounded">{campaign.campaignIdHex}</code>
-                </p>
-
-                <Button
-                  onClick={() => fetchCampaignTxs(campaign)}
-                  className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-2 rounded shadow"
+            {campaigns.map((campaign) => {
+              const status = getStatus(campaign);
+              return (
+                <div
+                  key={campaign.campaignIdHex}
+                  className="mb-10 border border-gray-700 rounded p-6 shadow-lg bg-gray-800"
                 >
-                  Load Transaction History
-                </Button>
+                  <h2 className="text-xl font-semibold mb-2 text-white">{campaign.campaignTitle}</h2>
+                  <p className="mb-2 break-all">
+                    Campaign ID: <code className="font-mono bg-gray-900 px-2 py-1 rounded">{campaign.campaignIdHex}</code>
+                  </p>
+                  <p className="mb-4">
+                    Status:{" "}
+                    <span
+                      className={`font-semibold ${
+                        status === "Active"
+                          ? "text-blue-400"
+                          : status === "Completed"
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {status}
+                    </span>
+                  </p>
 
-                {loadingTxs[campaign.campaignIdHex] && <p>Loading transactions...</p>}
-                {errorTxs[campaign.campaignIdHex] && (
-                  <p className="text-red-500">{errorTxs[campaign.campaignIdHex]}</p>
-                )}
+                  <Button
+                    onClick={() => fetchCampaignTxs(campaign)}
+                    className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-2 rounded shadow"
+                  >
+                    {campaignTxs[campaign.campaignIdHex] ? "Refresh Transaction History" : "Load Transaction History"}
+                  </Button>
 
-                {campaignTxs[campaign.campaignIdHex] &&
-                  campaignTxs[campaign.campaignIdHex].length === 0 && (
-                    <p>No transactions found for this campaign.</p>
+                  {loadingTxs[campaign.campaignIdHex] && <p>Loading transactions...</p>}
+                  {errorTxs[campaign.campaignIdHex] && (
+                    <p className="text-red-500">{errorTxs[campaign.campaignIdHex]}</p>
                   )}
 
-                {campaignTxs[campaign.campaignIdHex] &&
-                  campaignTxs[campaign.campaignIdHex].length > 0 && (
-                    <ul className="list-disc list-inside space-y-2 max-h-64 overflow-y-auto text-gray-300">
-                      {campaignTxs[campaign.campaignIdHex].map((tx: any) => (
-                        <li key={tx.txHash} className="break-all flex justify-between items-center">
-                          <a
-                            href={`https://preview.cardanoscan.io/transaction/${tx.txHash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400 hover:underline truncate max-w-[60%]"
-                            title={tx.txHash}
-                          >
-                            {tx.txHash.slice(0, 12)}...
-                          </a>
-                          <div className="flex gap-4 items-center text-sm">
-                            <span>
-                              {tx.direction === "Receiving" && (
-                                <span className="text-green-400 font-semibold">+{tx.amountAda.toFixed(6)} ADA</span>
-                              )}
-                              {tx.direction === "Spending" && (
-                                <span className="text-red-400 font-semibold">-{Math.abs(tx.amountAda).toFixed(6)} ADA</span>
-                              )}
-                              {tx.direction === "Neutral" && <span className="text-gray-400">0 ADA</span>}
-                            </span>
-                            <span className="text-gray-400">| Block: {tx.blockHeight}</span>
-                            <span className="text-gray-400">
-                              | {new Date(tx.blockTime * 1000).toLocaleString()}
-                            </span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-              </div>
-            ))}
+                  {campaignTxs[campaign.campaignIdHex] &&
+                    campaignTxs[campaign.campaignIdHex].length === 0 && (
+                      <p>No transactions found for this campaign.</p>
+                    )}
+
+                  {campaignTxs[campaign.campaignIdHex] &&
+                    campaignTxs[campaign.campaignIdHex].length > 0 && (
+                      <ul className="list-disc list-inside space-y-2 max-h-64 overflow-y-auto text-gray-300">
+                        {campaignTxs[campaign.campaignIdHex].map((tx: any) => (
+                          <li key={tx.txHash} className="break-all flex justify-between items-center">
+                            <a
+                              href={`https://preview.cardanoscan.io/transaction/${tx.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline truncate max-w-[60%]"
+                              title={tx.txHash}
+                            >
+                              {tx.txHash.slice(0, 12)}...
+                            </a>
+                            <div className="flex gap-4 items-center text-sm">
+                              <span>
+                                {tx.direction === "Receiving" && (
+                                  <span className="text-green-400 font-semibold">+{tx.amountAda.toFixed(6)} ADA</span>
+                                )}
+                                {tx.direction === "Spending" && (
+                                  <span className="text-red-400 font-semibold">-{Math.abs(tx.amountAda).toFixed(6)} ADA</span>
+                                )}
+                                {tx.direction === "Neutral" && <span className="text-gray-400">0 ADA</span>}
+                              </span>
+                              <span className="text-gray-400">| Block: {tx.blockHeight}</span>
+                              <span className="text-gray-400">
+                                | {new Date(tx.blockTime * 1000).toLocaleString()}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                </div>
+              );
+            })}
           </>
         )}
       </div>
