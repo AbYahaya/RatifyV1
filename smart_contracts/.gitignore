@@ -1,4 +1,4 @@
-# Aiken compilation artifacts
+# Aiken compilation artifact
 artifacts/
 # Aiken's project working directory
 build/
