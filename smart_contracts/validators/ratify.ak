@@ -21,7 +21,7 @@ validator ratify(
   admin: VerificationKeyHash,
   creator_address: Address,
   campaign_id: ByteArray,
-  // utxo_ref is used to maintain a unique address for each campaign
+  // utxo_ref is used for maintaining a unique address for each campaign
   utxo_ref: OutputReference,
 ) {
   mint(redeemer: RatifyMint, policy_id: PolicyId, tx: Transaction) {
