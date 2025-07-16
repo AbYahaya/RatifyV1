@@ -10,7 +10,7 @@ validator my_first_validator {
 }
 ```
 
-## Building
+## Buildingg
 
 ```sh
 aiken build
