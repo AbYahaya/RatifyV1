@@ -3,7 +3,7 @@ version = "0.0.0"
 compiler = "v1.1.17"
 plutus = "v3"
 license = "Apache-2.0"
-description = "Aiken contracts for project 'ratifyv1/smart_contracts'"
+description = "Aiken contracts for 'ratifyv1/smart_contracts'"
 
 [repository]
 user = "ratifyv1"
