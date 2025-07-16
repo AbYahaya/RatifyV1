@@ -1,7 +1,7 @@
 use cardano/address.{Address}
 
 pub type RatifyMint {
-  // CreatorMint: creates campaign
+  // CreatorMint: creates a campaign
   CreatorMint
   // BackerMint: backs campaign
   BackerMint
